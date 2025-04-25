@@ -30,7 +30,8 @@ class GHLUser(models.Model):
     role_type = models.CharField(max_length=50, null=True, blank=True)
     role = models.CharField(max_length=50, null=True, blank=True)
     
-    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} ({self.email})"   
 
 class Contact(models.Model):
     id = models.CharField(max_length=50, primary_key=True)  # Contact ID from API

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from core.serializers import ContactSerializer
+from core.serializers import ContactSerializer,GHLUserSerializer
 from .models import Pipeline, Opportunity
 from core .models import Contact
 
@@ -10,29 +10,23 @@ class PipelineSerializer(serializers.ModelSerializer):
         fields = [ "ghl_id", "name", "date_added", "date_updated"]
 
 
-class OpportunitySerializer(serializers.ModelSerializer):
-    pipeline = PipelineSerializer(read_only=True)
-    pipeline_id = serializers.PrimaryKeyRelatedField(
-        queryset=Pipeline.objects.all(), source="pipeline", write_only=True
-    )
+class OpportunityReadSerializer(serializers.ModelSerializer):
+    assigned_to = GHLUserSerializer(read_only=True)
     contact = ContactSerializer(read_only=True)
-    contact_id = serializers.PrimaryKeyRelatedField(
-        queryset=Contact.objects.all(), source="contact", write_only=True, allow_null=True
-    )
+    pipeline = PipelineSerializer(read_only=True)
 
     class Meta:
         model = Opportunity
         fields = [
-           
-            "ghl_id",
-            "name",
-            "pipeline",
-            "pipeline_id",
-            "contact",
-            "contact_id",
-            "status",
-            "created_at",
-            "updated_at",
+            'ghl_id',
+            'name',
+            'opp_value',
+            'assigned_to',
+            'pipeline',
+            'contact',
+            'stage_id',
+            'status',
+            'created_at',
+            'updated_at',
         ]
-
 

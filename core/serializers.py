@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Contact
+from .models import Contact,GHLUser
 
 
 from rest_framework import serializers
@@ -22,3 +22,9 @@ class ContactSerializer(serializers.ModelSerializer):
             "date_updated",
             "dnd",
         ]
+        
+
+class GHLUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GHLUser
+        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role_type', 'role']

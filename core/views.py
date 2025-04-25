@@ -15,15 +15,15 @@ from django.utils.timezone import now
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import viewsets, filters, status
+from rest_framework.filters import SearchFilter
 from rest_framework.pagination import PageNumberPagination
-from .models import Contact, WebhookLog
-from .serializers import ContactSerializer
+from .models import Contact, WebhookLog, GHLUser
+from .serializers import ContactSerializer, GHLUserSerializer
 from .services import ContactServices
 from opportunities.services import PipelineServices
 Pipeline= apps.get_model('opportunities', 'Pipeline')
 Opportunity= apps.get_model('opportunities', 'Opportunity')
 WebhookLog = apps.get_model('core', 'WebhookLog')
-Contact = apps.get_model('contacts', 'Contact')
 
 PUBLIC_KEY='''-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAokvo/r9tVgcfZ5DysOSC
@@ -56,6 +56,13 @@ class ContactViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter]
     search_fields = ["first_name", "last_name", "email","id"]
 
+
+class GHLUserViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = GHLUser.objects.all().order_by('first_name')
+    serializer_class = GHLUserSerializer
+    lookup_field = 'id'
+    filter_backends = [SearchFilter]
+    search_fields = ['first_name', 'last_name', 'email']
 
 @method_decorator(csrf_exempt, name='dispatch')
 class WebhookView(APIView):
