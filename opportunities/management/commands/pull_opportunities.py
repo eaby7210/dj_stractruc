@@ -2,7 +2,8 @@ import logging
 from django.core.management.base import BaseCommand
 from opportunities.services import OpportunityServices
 from opportunities.models import Pipeline, Opportunity
-from core.models import Contact  
+from core.models import Contact,GHLUser
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +17,14 @@ class Command(BaseCommand):
             print(f"Processing pipeline: {pipeline.ghl_id} - {pipeline.name}")
             self.fetch_all_opportunities(pipeline)
 
-    def fetch_all_opportunities(self, pipeline):
+    def fetch_all_opportunities(self, pipeline:Pipeline):
         """Fetch opportunities using a loop and store in the DB."""
         
         query = {"pipeline_id": pipeline.ghl_id}  # Initial query param
         batch_size = 100  # Control batch size to optimize DB writes
 
         while True:
-            opp_data, meta = OpportunityServices.get_opportunity(query=query)
+            opp_data, meta = OpportunityServices.get_opportunity(pipeline.LocationId,query=query)
 
             if not opp_data:
                 break  # Exit if no more data
@@ -65,19 +66,26 @@ class Command(BaseCommand):
 
                 if contact:
                     opp_id = item["id"]
-                    if opp_id not in existing_opportunity_ids:
-                        Opportunity.objects.update_or_create(
-                            ghl_id=opp_id,
-                            defaults={
-                                "name": item["name"],
-                                "pipeline": pipeline,
-                                "status": item["status"],
-                                "contact": contact,
-                                "created_at": item["createdAt"],
-                                "updated_at": item["updatedAt"],
-                            }
-                        )
-                        existing_opportunity_ids.add(opp_id)
+                    assigned_user = None
+                    assigned_id = item.get("assignedTo")
+                    if assigned_id:
+                        assigned_user = GHLUser.objects.filter(id=assigned_id).first()
+                    Opportunity.objects.update_or_create(
+                        ghl_id=opp_id,
+                        defaults={
+                            "name": item["name"],
+                            "pipeline": pipeline,
+                            "status": item["status"],
+                            "opp_value": Decimal(item.get("monetaryValue", 0)),
+                            "contact": contact,
+                            "assigned_to": assigned_user,
+                            "created_at": item["createdAt"],
+                            "updated_at": item["updatedAt"],
+                            "stage_id": item["pipelineStageId"]
+                        }
+                    )
+                    existing_opportunity_ids.add(opp_id)
+
 
             print(f"Total opportunities stored: {Opportunity.objects.count()}")
             print(f"Total contacts stored: {Contact.objects.count()}")

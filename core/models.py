@@ -2,11 +2,41 @@ from django.db import models
 from django.utils.timezone import now
 
 
+class OAuthToken(models.Model):
+    access_token = models.TextField()
+    token_type = models.CharField(max_length=100, default="Brearer")
+    expires_at = models.DateField()
+    refresh_token = models.TextField()
+    scope = models.TextField()
+    userType = models.CharField(max_length=100)
+    companyId = models.CharField(max_length=100)
+    company_name = models.CharField(max_length=200, null=True, blank=True)
+    LocationId = models.CharField(max_length=100,unique=True)
+    userId = models.CharField(max_length=100)
+    
+    def is_expired(self):
+        """Check if the access token is expired"""
+        return now().date() >= self.expires_at
+    
+    def __str__(self):
+        return f"{self.LocationId} - {self.token_type}"
+    
+class GHLUser(models.Model):
+    id = models.CharField(max_length=50, primary_key=True)  # UserID from API
+    first_name = models.CharField(max_length=100,null=True)
+    last_name = models.CharField(max_length=100,null=True)
+    email = models.EmailField(null=True, blank=True)
+    phone = models.CharField(max_length=100,null=True, blank=True)
+    role_type = models.CharField(max_length=50, null=True, blank=True)
+    role = models.CharField(max_length=50, null=True, blank=True)
+    
+    
+
 class Contact(models.Model):
     id = models.CharField(max_length=50, primary_key=True)  # Contact ID from API
     first_name = models.CharField(max_length=100,null=True)
     last_name = models.CharField(max_length=100,null=True)
-    email = models.EmailField(unique=True,null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)
     phone = models.CharField(max_length=100,null=True, blank=True)
     country = models.CharField(max_length=10,null=True, blank=True)
     location_id = models.CharField(max_length=50, null=True, blank=True)
@@ -29,7 +59,19 @@ class WebhookLog(models.Model):
         return f"{self.webhook_id} : {self.received_at}"
 
 
+class CustomField(models.Model):
+    id = models.CharField(max_length=100, primary_key=True)
+    name = models.CharField(max_length=255)
+    model_name = models.CharField(max_length=50)
+    field_key = models.CharField(max_length=255)
+    placeholder = models.CharField(max_length=255, blank=True)
+    data_type = models.CharField(max_length=50)
+    parent_id = models.CharField(max_length=100)
+    location_id = models.CharField(max_length=100)
+    date_added = models.DateTimeField()
 
+    def __str__(self):
+        return self.name
 
 # class DNDSettings(models.Model):
 #     contact = models.OneToOneField(Contact, related_name="dnd_settings", on_delete=models.CASCADE)

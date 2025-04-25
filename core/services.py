@@ -3,9 +3,10 @@ from django.utils.timezone import now
 from datetime import timedelta
 from .models import OAuthToken
 from django.conf import settings
+from django.db import transaction
 import requests 
 from datetime import datetime
-from .models import Contact, CustomField
+from .models import Contact, CustomField, GHLUser
 import json
 from django.contrib.contenttypes.models import ContentType
 from django.apps import apps
@@ -24,10 +25,13 @@ class OAuthTokenError(Exception):
 class OAuthServices:
     
     @staticmethod
-    def get_valid_access_token_obj(location_id):
+    def get_valid_access_token_obj(location_id=None):
        
         from django.conf import settings
-        token_obj = OAuthToken.objects.get(LocationId=location_id)  # Assuming one OAuth record, change if one per user
+        if location_id:
+            token_obj = OAuthToken.objects.get(LocationId=location_id)  # Assuming one OAuth record, change if one per user
+        else:
+            token_obj = OAuthToken.objects.first()
         if not token_obj:
             raise OAuthTokenError("OAuth token not found. Please authenticate first")
         
@@ -57,8 +61,8 @@ class OAuthServices:
 
         
         if response.status_code == 200:
-            company_data = fetch_company_data(token_data['access_token'], token_data['locationId'])
-            print("company data:",company_data)
+            # company_data = fetch_company_data(token_data['access_token'], token_data['locationId'])
+            # print("company data:",company_data)
             print("success response")
             token_obj, created = OAuthToken.objects.update_or_create(
                 LocationId=token_data["locationId"],
@@ -71,7 +75,7 @@ class OAuthServices:
                     "userType": token_data["userType"],
                     "companyId": token_data["companyId"],
                     "userId": token_data["userId"],
-                    "company_name":company_data["name"],
+                    
                 }
             )
             return token_obj
@@ -284,10 +288,12 @@ class ContactServices:
 class CustomfieldServices:
 
     @staticmethod
-    def get_customfields(location_id, model="all"):
+    def get_customfields(location_id, model=None):
         """
         Fetch custom fields from GoHighLevel API for a specific location_id.
         """
+        model = model or "all"
+        print(f"getting custom fields of {model}")
         token_obj = OAuthServices.get_valid_access_token_obj(location_id)
         headers = {
             "Authorization": f"Bearer {token_obj.access_token}",
@@ -308,7 +314,7 @@ class CustomfieldServices:
             raise ContactServiceError(f"API request failed: {response.status_code}")
 
     @staticmethod
-    def pull_customfields(model=None):
+    def pull_customfields(model):
         """
         Pull custom fields for all locations and save them.
         """
@@ -346,6 +352,58 @@ class CustomfieldServices:
                 }
             )
 
+class UserServicesError(Exception):
+    "Exeption for Contact api's"
+    pass
+
+
+class UserServices:
+    
+    @staticmethod
+    def get_users(limit=LIMIT_PER_PAGE):
+        token_obj = OAuthServices.get_valid_access_token_obj()
+        headers = {
+            "Authorization": f"Bearer {token_obj.access_token}",
+            "Version": API_VERSION,
+        }
+
+       
+        url = f"{BASE_URL}/users/"
+        params = {
+            # "limit": limit,
+            # "companyId":token_obj.companyId
+            "locationId":token_obj.LocationId
+            
+        }
+        response = requests.get(url, headers=headers, params=params)
+        print(json.dumps(response.json(), indent=4))
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise UserServicesError(f"API request failed: {response.status_code}")
+
+    @staticmethod
+    @transaction.atomic
+    def pull_users():
+        data = UserServices.get_users()
+        UserServices.save_users(data)
+        return data.get("users", [])
+
+    @staticmethod
+    @transaction.atomic
+    def save_users(data):
+        for user in data.get("users", []):
+            GHLUser.objects.update_or_create(
+                id=user["id"],
+                defaults={
+                    "first_name": user.get("firstName"),
+                    "last_name": user.get("lastName"),
+                    "email": user.get("email"),
+                    "phone": user.get("phone"),
+                    "role_type": user.get("roles", {}).get("type"),
+                    "role": user.get("roles", {}).get("role"),
+                }
+            )
 
 def safe_int(val):
     try:
@@ -372,19 +430,3 @@ def fetch_company_data(token, locationID):
         print(f"Response: {response.text}")
         return None
     
-token = OAuthToken.objects.first()
-url = f"https://services.leadconnectorhq.com/companies/{token.LocationId}"
-headers = {
-    "Accept": "application/json",
-    "Authorization": f"Bearer {token.access_token}",
-    "Version": "2021-07-28"
-}
-
-response = requests.get(url, headers=headers)
-
-if response.status_code == 200:
-    print(response.json())
-else:
-    print(f"Failed to fetch company data. Status code: {response.status_code}")
-    print(f"Response: {response.text}")
-    print(None)
