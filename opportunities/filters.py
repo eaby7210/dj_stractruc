@@ -1,19 +1,40 @@
-import django_filters
-from .models import Opportunity
-from core.models import GHLUser
 
-class OpportunityFilter(django_filters.FilterSet):
-    created_at__gte = django_filters.DateFilter(field_name="created_at", lookup_expr='gte')
-    created_at__lte = django_filters.DateFilter(field_name="created_at", lookup_expr='lte')
-    opp_value__gte = django_filters.NumberFilter(field_name="opp_value", lookup_expr='gte')
-    opp_value__lte = django_filters.NumberFilter(field_name="opp_value", lookup_expr='lte')
-    assigned_to = django_filters.rest_framework.ModelChoiceFilter(
-        queryset=GHLUser.objects.all(),
-        field_name='assigned_to',
-        to_field_name='id',  # If you want to filter by ID
-        label="Assigned User"
+from django_filters import widgets
+from django_filters.rest_framework import filters, FilterSet
+from .models import Opportunity
+from core.models import GHLUser, Contact
+
+
+class OpportunityFilter(FilterSet):
+    created_at = filters.DateFromToRangeFilter(
+        field_name='created_at',
+        label="Created Date (range)",
+        widget=widgets.RangeWidget(attrs={'type': 'date'})
     )
+   
+    opp_value = filters.RangeFilter(
+        field_name="opp_value",
+        label="Opportunity Value (range)",
+        widget=widgets.RangeWidget(attrs={'type': 'number'})
+    )
+    
+    assigned_to = filters.ModelMultipleChoiceFilter(
+        queryset=GHLUser.objects.all(),
+        field_name='assigned_to__id',
+        to_field_name='id',
+        label="Assigned Users",
+        conjoined=False 
+    )
+    
+    contact = filters.ModelMultipleChoiceFilter(
+    queryset=Contact.objects.all(),  # import Contact model if not already
+    field_name='contact__id',
+    to_field_name='id',
+    label="Contacts",
+    conjoined=False
+)
+
 
     class Meta:
         model = Opportunity
-        fields = ['status', 'assigned_to', 'created_at__gte', 'created_at__lte', 'opp_value__gte', 'opp_value__lte']
+        fields = ['status', 'assigned_to', 'created_at', 'opp_value', 'opp_value']
