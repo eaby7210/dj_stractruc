@@ -1,5 +1,6 @@
 .env
 __pycache__/
+staticfiles
 *.pyc
 env
 db.sqlite3
