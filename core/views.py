@@ -212,3 +212,5 @@ class WebhookView(APIView):
     def delete_contact(self, data):
         """ Deletes a contact """
         Contact.objects.filter(id=data["id"]).delete()
+
+

@@ -1,8 +1,9 @@
 import logging
+import json
 from django.core.management.base import BaseCommand
 from opportunities.services import OpportunityServices
-from opportunities.models import Pipeline, Opportunity
-from core.models import Contact,GHLUser
+from opportunities.models import Pipeline, Opportunity, OpportunityCustomFieldValue
+from core.models import Contact,GHLUser, CustomField
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
@@ -20,8 +21,8 @@ class Command(BaseCommand):
     def fetch_all_opportunities(self, pipeline:Pipeline):
         """Fetch opportunities using a loop and store in the DB."""
         
-        query = {"pipeline_id": pipeline.ghl_id}  # Initial query param
-        batch_size = 100  # Control batch size to optimize DB writes
+        query = {"pipeline_id": pipeline.ghl_id}  
+        batch_size = 100  
 
         while True:
             opp_data, meta = OpportunityServices.get_opportunity(pipeline.LocationId,query=query)
@@ -30,7 +31,7 @@ class Command(BaseCommand):
                 break  # Exit if no more data
 
             print(f"Fetched {len(opp_data)} opportunities from API.")
-
+            # print(f"sample data :\n{json.dumps(opp_data[-1],indent=4)}")
             existing_contact_ids = set(Contact.objects.values_list("id", flat=True))
             existing_opportunity_ids = set(Opportunity.objects.values_list("ghl_id", flat=True))
 
@@ -62,31 +63,59 @@ class Command(BaseCommand):
                         existing_contact_ids.add(contact_id)  
                     else:
                         contact = Contact.objects.filter(id=contact_id).first()
+                    
+                try:
+                    if contact:
+                        opp_id = item["id"]
+                        assigned_user = None
+                        assigned_id = item.get("assignedTo")
+                        if assigned_id:
+                            assigned_user = GHLUser.objects.filter(id=assigned_id).first()
+                        opportunity, created =Opportunity.objects.update_or_create(
+                            ghl_id=opp_id,
+                            defaults={
+                                "name": item["name"],
+                                "pipeline": pipeline,
+                                "status": item["status"],
+                                "opp_value": Decimal(item.get("monetaryValue", 0)),
+                                "contact": contact,
+                                "assigned_to": assigned_user,
+                                "created_at": item["createdAt"],
+                                "updated_at": item["updatedAt"],
+                                "stage_id": item["pipelineStageId"]
+                            }
+                        )
+                        existing_opportunity_ids.add(opp_id)
 
+                        custom_fields_data = item.get("customFields", [])
+                        if custom_fields_data and isinstance(custom_fields_data, list):
+                            for field in custom_fields_data:
+                                custom_field_id = field.get("id")
+                                field_value = (
+                                    field.get("fieldValueString") or
+                                    field.get("fieldValueArray") or
+                                    field.get("fieldValue")
+                                )
 
-                if contact:
-                    opp_id = item["id"]
-                    assigned_user = None
-                    assigned_id = item.get("assignedTo")
-                    if assigned_id:
-                        assigned_user = GHLUser.objects.filter(id=assigned_id).first()
-                    Opportunity.objects.update_or_create(
-                        ghl_id=opp_id,
-                        defaults={
-                            "name": item["name"],
-                            "pipeline": pipeline,
-                            "status": item["status"],
-                            "opp_value": Decimal(item.get("monetaryValue", 0)),
-                            "contact": contact,
-                            "assigned_to": assigned_user,
-                            "created_at": item["createdAt"],
-                            "updated_at": item["updatedAt"],
-                            "stage_id": item["pipelineStageId"]
-                        }
-                    )
-                    existing_opportunity_ids.add(opp_id)
+                                if not custom_field_id:
+                                    continue 
+                                
+                                try:
+                                    custom_field = CustomField.objects.get(id=custom_field_id)
+                                except CustomField.DoesNotExist:
+                                    print(f"CustomField with id {custom_field_id} not found, skipping...")
+                                    continue
 
-
+                                # Save or update custom field value
+                                OpportunityCustomFieldValue.objects.update_or_create(
+                                    opportunity=opportunity,
+                                    custom_field=custom_field,
+                                    defaults={"value": field_value}
+                                    )
+                except Exception as e:
+                    print(e)
+                    print(json.dumps(item, indent=4))
+                    raise Exception('Error occured')
             print(f"Total opportunities stored: {Opportunity.objects.count()}")
             print(f"Total contacts stored: {Contact.objects.count()}")
 
@@ -99,3 +128,6 @@ class Command(BaseCommand):
                 "startAfter": meta.get("startAfter", ""),
                 "startAfterId": meta.get("startAfterId", ""),
             })
+            
+    def get_custom_field_obj(self, location_id, key ):
+        return CustomField.objects.get(location_id=location_id,field_key=key)
