@@ -1,7 +1,7 @@
 import requests
 import os
 import json
-from .models import Pipeline
+from .models import Pipeline,PipelineStage
 from django.conf import settings
 from core.services import OAuthServices
 from core.models import OAuthToken
@@ -61,7 +61,7 @@ class PipelineServices:
                 LocationId = location_id
                 
                 if ghl_id and name:
-                    # Create or update the pipeline
+
                     pipeline, created = Pipeline.objects.update_or_create(
                         ghl_id=ghl_id,
                         defaults={"name": name,"LocationId":LocationId}
@@ -70,7 +70,25 @@ class PipelineServices:
                         print(f"Pipeline '{name}' added.")
                     else:
                         print(f"Pipeline '{name}' updated.")
-    
+                    
+                    stages = pipeline_data.get("stages", [])
+                    for stage_data in stages:
+                        stage_ghl_id = stage_data.get("id")
+                        stage_name = stage_data.get("name")
+                        position = stage_data.get("position")
+
+                        # Create or update the pipeline stage
+                        if stage_ghl_id and stage_name is not None and position is not None:
+                            pipeline_stage, stage_created = PipelineStage.objects.update_or_create(
+                                id=stage_ghl_id,  # Using the stage id as primary key
+                                pipeline=pipeline,
+                                defaults={"name": stage_name, "position": position}
+                            )
+                            if stage_created:
+                                print(f"Stage '{stage_name}' for pipeline '{name}' added.")
+                            else:
+                                print(f"Stage '{stage_name}' for pipeline '{name}' updated.")
+        
 
 
 class OpportunityServices:

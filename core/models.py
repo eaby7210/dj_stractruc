@@ -83,14 +83,3 @@ class CustomField(models.Model):
     def __str__(self):
         return self.name
 
-# class DNDSettings(models.Model):
-#     contact = models.OneToOneField(Contact, related_name="dnd_settings", on_delete=models.CASCADE)
-#     call = models.JSONField(default=dict)
-#     sms = models.JSONField(default=dict)
-#     email = models.JSONField(default=dict)
-#     whatsapp = models.JSONField(default=dict)
-#     fb = models.JSONField(default=dict)
-#     gmb = models.JSONField(default=dict)
-
-#     def __str__(self):
-#         return f"DND Settings for {self.contact.email}"

@@ -2,7 +2,7 @@ import logging
 import json
 from django.core.management.base import BaseCommand
 from opportunities.services import OpportunityServices
-from opportunities.models import Pipeline, Opportunity, OpportunityCustomFieldValue
+from opportunities.models import Pipeline, Opportunity, OpportunityCustomFieldValue, PipelineStage
 from core.models import Contact,GHLUser, CustomField
 from decimal import Decimal
 
@@ -71,6 +71,9 @@ class Command(BaseCommand):
                         assigned_id = item.get("assignedTo")
                         if assigned_id:
                             assigned_user = GHLUser.objects.filter(id=assigned_id).first()
+                        
+                        stage_id = item.get("pipelineStageId")
+                        stage = PipelineStage.objects.filter(id=stage_id).first()                        
                         opportunity, created =Opportunity.objects.update_or_create(
                             ghl_id=opp_id,
                             defaults={
@@ -82,7 +85,7 @@ class Command(BaseCommand):
                                 "assigned_to": assigned_user,
                                 "created_at": item["createdAt"],
                                 "updated_at": item["updatedAt"],
-                                "stage_id": item["pipelineStageId"]
+                                "stage": stage or None
                             }
                         )
                         existing_opportunity_ids.add(opp_id)
@@ -114,6 +117,7 @@ class Command(BaseCommand):
                                     )
                 except Exception as e:
                     print(e)
+                    print(stage, pipeline, contact, assigned_user)
                     print(json.dumps(item, indent=4))
                     raise Exception('Error occured')
             print(f"Total opportunities stored: {Opportunity.objects.count()}")

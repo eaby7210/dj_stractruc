@@ -15,6 +15,7 @@ class PipelineStage(models.Model):
     id = models.CharField(max_length=100, primary_key=True)  # Stage ID from API
     pipeline = models.ForeignKey(Pipeline, on_delete=models.CASCADE, related_name="stages")
     name = models.CharField(max_length=255)
+    position = models.IntegerField()
 
 
 
@@ -28,7 +29,7 @@ class Opportunity(models.Model):
     assigned_to= models.ForeignKey("core.GHLUser",  on_delete=models.DO_NOTHING,null=True, blank=True)
     pipeline = models.ForeignKey(Pipeline, on_delete=models.PROTECT, related_name="opportunities", null=True, blank=True)
     contact = models.ForeignKey('core.Contact', on_delete=models.SET_DEFAULT, null=True, blank=True,default=None)
-    stage_id = models.CharField(max_length=100, null=True, blank=True)
+    stage = models.ForeignKey(PipelineStage, on_delete=models.SET_NULL, null=True, blank=True, related_name="opportunities")
     status = models.CharField(max_length=50, db_index=True)
     created_at = models.DateTimeField(db_index=True)
     updated_at = models.DateTimeField()
