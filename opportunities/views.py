@@ -12,9 +12,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Sum, Count
 from core.services import ContactServices
 from .services import PipelineServices
-from .serializers import OpportunityReadSerializer, PipelineSerializer
-from .models import Opportunity, Pipeline
-from .filters import OpportunityFilter
+from .serializers import (
+    OpportunityReadSerializer, PipelineSerializer,
+    PipelineStageSerializer
+    )
+from .models import Opportunity, Pipeline, PipelineStage
+from .filters import OpportunityFilter, PipelineStagesFilter
 from rest_framework.pagination import PageNumberPagination
 
 
@@ -69,3 +72,17 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
         }
         
         return response
+
+class PipelineViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Pipeline.objects.all().prefetch_related('stages')
+    serializer_class = PipelineSerializer
+
+class PipelineStageViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = PipelineStage.objects.select_related('pipeline')
+    serializer_class = PipelineStageSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = PipelineStagesFilter
+    search_fields = [
+        'name'
+    ]
+    ordering_fields = ['position']

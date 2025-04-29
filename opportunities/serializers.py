@@ -1,13 +1,20 @@
 from rest_framework import serializers
 from core.serializers import ContactSerializer,GHLUserSerializer
-from .models import Pipeline, Opportunity
+from .models import Pipeline, Opportunity, PipelineStage
 from core .models import Contact
 
 
+class PipelineStageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PipelineStage
+        fields = ['id', 'name', 'position']
+
 class PipelineSerializer(serializers.ModelSerializer):
+    stages = PipelineStageSerializer(many=True, read_only=True)
+
     class Meta:
         model = Pipeline
-        fields = [ "ghl_id", "name", "date_added", "date_updated"]
+        fields = ['ghl_id', 'name', 'LocationId', 'date_added', 'date_updated', 'stages']
 
 
 class OpportunityReadSerializer(serializers.ModelSerializer):

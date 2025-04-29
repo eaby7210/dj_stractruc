@@ -1,12 +1,15 @@
 from django.urls import path, include
 from .views import (
-  OpportunityViewSet,
+  OpportunityViewSet,PipelineViewSet,
+  PipelineStageViewSet
 
     )
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
 router.register(r'opportunities',OpportunityViewSet, basename= 'opportunity')
+router.register(r'pipelines', PipelineViewSet, basename='pipeline')
+router.register(r'pipeline-stages', PipelineStageViewSet, basename='pipeline-stage')
 
 
 urlpatterns = [

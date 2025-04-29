@@ -33,7 +33,6 @@ class Opportunity(models.Model):
     created_at = models.DateTimeField(db_index=True)
     updated_at = models.DateTimeField()
 
-    
     def __str__(self):
         return f"Opportunity id:{self.ghl_id} - {self.name}"
 

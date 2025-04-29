@@ -3,7 +3,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django_filters import widgets
 from django_filters.rest_framework import filters, FilterSet
-from .models import Opportunity
+from .models import Opportunity, PipelineStage
 from core.models import GHLUser, Contact
 
 
@@ -111,5 +111,13 @@ class OpportunityFilter(FilterSet):
         fields = [
             'status', 'state', 'assigned_to',
             'created_at', 'opp_value', 'opp_value',
-            'fiscal_period'
+            'fiscal_period', 'stage', 'pipeline',
             ]
+        
+        
+class PipelineStagesFilter(FilterSet):
+    class Meta:
+        model = PipelineStage
+        fields = [
+            'pipeline'
+        ]
