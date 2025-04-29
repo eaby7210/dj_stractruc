@@ -1,7 +1,7 @@
 import requests
 from django.utils.timezone import now
 from datetime import timedelta
-from .models import OAuthToken
+from .models import OAuthToken, ContactCustomFieldValue
 from django.conf import settings
 from django.db import transaction
 import requests 
@@ -193,7 +193,7 @@ class ContactServices:
                 contacts = response_data.get("contacts", [])
                 all_contacts.extend(contacts)
 
-                print(contacts)
+                # print(json.dumps(contacts,indent=4))
                 print(len(all_contacts), i, end='\n\n')
                 if not response_data.get("meta", {}).get("nextPageURL"):
                     break  # No next page
@@ -209,72 +209,80 @@ class ContactServices:
     @staticmethod
     def _save_contacts(contacts):
         """
-        Bulk save contacts to the database.
+        Bulk save contacts to the database along with their custom fields.
         """
         unique_contacts = {contact["id"]: contact for contact in contacts}.values()  # Remove duplicates
+
         contact_objects = []
+        custom_field_values = []
+
+        # Step 1: Prepare Contact objects
         for contact in unique_contacts:
-            customfields = ContactServices.add_customfields(contact.get("customFields"),contact.get("locationId",""))
-            print("customfields",customfields)
-            contact_objects.append(Contact(
+            contact_obj = Contact(
                 id=contact["id"],
                 first_name=contact.get("firstName", ""),
                 last_name=contact.get("lastName", ""),
                 email=contact.get("email", ""),
-                phone=contact.get("phone",""),
+                phone=contact.get("phone", ""),
                 country=contact.get("country", ""),
                 location_id=contact.get("locationId", ""),
                 type=contact.get("type", "lead"),
                 date_added=datetime.fromisoformat(contact["dateAdded"].replace("Z", "+00:00")) if contact.get("dateAdded") else None,
                 date_updated=datetime.fromisoformat(contact["dateUpdated"].replace("Z", "+00:00")) if contact.get("dateUpdated") else None,
                 dnd=contact.get("dnd", False),
-                min_price = customfields.get("min_price",""),
-                max_price = customfields.get("max_price",""),
-                province = customfields.get("province",""),
-                price_freq = customfields.get("price_freq",""),
-                property_type = customfields.get("property_type",""),
-                beds = safe_int(customfields.get("beds")),
-                baths = safe_int(customfields.get("baths"))
+            )
+            contact_objects.append(contact_obj)
 
-            ))
-        print(contact_objects)
-            
-        
-
+        # Step 2: Bulk insert or update contacts
         Contact.objects.bulk_create(
-        contact_objects,
-        update_conflicts=True,
-        unique_fields=["id"],
-        update_fields=[
-            "first_name", "last_name", "email", "phone", "country", "location_id", "type",
-            "date_added", "date_updated", "dnd", "min_price", "max_price", "province",
-            "price_freq", "property_type", "beds", "baths"
-        ],
+            contact_objects,
+            update_conflicts=True,
+            unique_fields=["id"],
+            update_fields=[
+                "first_name", "last_name", "email", "phone", "country", "location_id", "type",
+                "date_added", "date_updated", "dnd"
+            ],
         )
 
-        # ObjectCustomField = apps.get_model("custom_fields", "ObjectCustomField", require_ready=False)
+        # Step 3: Prepare CustomFieldValues
+        for contact in unique_contacts:
+            custom_fields_data = contact.get("customFields", [])
+            print(json.dumps(custom_fields_data, indent=4))
+            if custom_fields_data and isinstance(custom_fields_data, list):
+                for field in custom_fields_data:
+                    custom_field_id = field.get("id")
+                    field_value = (
+                        field.get("fieldValueString") or
+                        field.get("fieldValueArray") or
+                        field.get("fieldValue") or
+                        field.get("value")
+                    )
 
-        # if ObjectCustomField:
-        #     unique_custom_fields = {(cf["id"], contact["id"]): cf for contact in unique_contacts for cf in contact.get("customFields", [])}.values()
+                    if not custom_field_id or field_value is None:
+                        continue  # Skip invalid fields
 
-        #     custom_field_objects = [
-        #         ObjectCustomField(
-        #             field_id=custom_field.get("id", ""),
-        #             field_value=custom_field.get("value", ""),
-        #             content_type=ContentType.objects.get_for_model(Contact),
-        #             object_id=contact["id"],
-        #         )
-        #         for contact in unique_contacts for custom_field in contact.get("customFields", [])
-        #     ]
+                    try:
+                        custom_field = CustomField.objects.get(id=custom_field_id)
+                    except CustomField.DoesNotExist:
+                        print(f"CustomField with id {custom_field_id} not found, skipping...")
+                        continue
 
-        #     if custom_field_objects:
-        #         ObjectCustomField.objects.bulk_create(
-        #             custom_field_objects,
-        #             update_conflicts=True,
-        #             unique_fields=["field_id", "object_id"],
-        #             update_fields=["field_value"],
-        #)
-        
+                    custom_field_values.append(
+                        ContactCustomFieldValue(
+                            contact_id=contact["id"],  # using id to avoid hitting DB again
+                            custom_field=custom_field,
+                            value=field_value,
+                        )
+                    )
+
+        # Step 4: Bulk insert custom field values (upsert manually)
+        for cfv in custom_field_values:
+            ContactCustomFieldValue.objects.update_or_create(
+                contact_id=cfv.contact_id,
+                custom_field=cfv.custom_field,
+                defaults={"value": cfv.value}
+            )
+            
     @staticmethod
     def add_customfields( data, locatioId):
         cf_dict={}

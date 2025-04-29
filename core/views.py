@@ -18,7 +18,10 @@ from rest_framework import viewsets, filters, status
 from rest_framework.filters import SearchFilter
 from rest_framework.pagination import PageNumberPagination
 from .models import Contact, WebhookLog, GHLUser
-from .serializers import ContactSerializer, GHLUserSerializer
+from .serializers import (
+    ContactSerializer,ContactWithOpportunitiesSerializer,
+    GHLUserSerializer
+    )
 from .services import ContactServices
 from opportunities.services import PipelineServices
 Pipeline= apps.get_model('opportunities', 'Pipeline')
@@ -50,7 +53,15 @@ class ContactPagination(PageNumberPagination):
 # Contact ViewSet
 class ContactViewSet(viewsets.ModelViewSet):
     queryset = Contact.objects.all()
-    serializer_class = ContactSerializer
+    
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ContactSerializer
+        elif self.action == 'retrieve':
+            return ContactWithOpportunitiesSerializer
+        return ContactSerializer
+
     pagination_class = ContactPagination  
 
     filter_backends = [filters.SearchFilter]
