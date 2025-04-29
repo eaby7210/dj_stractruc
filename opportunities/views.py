@@ -44,24 +44,28 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
         response = super().list(request, *args, **kwargs)
         
         queryset = self.filter_queryset(self.get_queryset())
-
-
-        amount_closed = queryset.filter(status='won').aggregate(total=Sum('opp_value'))['total'] or 0
-        open_ops_count = queryset.filter(status='open').count()
-        closed_ops_count = queryset.filter(status='won').count()
-
+        
+        open_queryset = queryset.filter(status='open')
+        closed_queryset = queryset.exclude(status='open')
 
         total_value_by_status = queryset.values('status').annotate(total_value=Sum('opp_value'))
 
+        amount_closed = closed_queryset.aggregate(total=Sum('opp_value'))['total'] or 0
+        amount_open = open_queryset.aggregate(total=Sum('opp_value'))['total'] or 0
 
-        status_wise_totals = {item['status']: item['total_value'] or 0 for item in total_value_by_status}
+        open_ops_count = open_queryset.count()
+        closed_ops_count = closed_queryset.count()
+        
+        # total_value_by_status = queryset.values('status').annotate(total_value=Sum('opp_value'))
+        # status_wise_totals = {item['status']: item['total_value'] or 0 for item in total_value_by_status}
 
 
         response.data['aggregations'] = {
             'amount_closed': amount_closed,
+            'amount_open': amount_open,
             'open_ops_count': open_ops_count,
             'closed_ops_count': closed_ops_count,
-            'total_value_by_status': status_wise_totals,
+            # 'total_value_by_status': status_wise_totals,
         }
         
         return response
