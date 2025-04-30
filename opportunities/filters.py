@@ -123,7 +123,13 @@ class PipelineStagesFilter(FilterSet):
         ]
         
 class PipelineFilter(FilterSet):
-    stage_name = filters.CharFilter(field_name="stages__name", lookup_expr='icontains')
+    stage_name = filters.ChoiceFilter(label="Stage Name",field_name="stages__name")
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        stage_names = PipelineStage.objects.values_list('name', flat=True).distinct()
+        self.filters['stage_name'].extra['choices'] = [(name, name) for name in stage_names]
+
 
     class Meta:
         model = Pipeline

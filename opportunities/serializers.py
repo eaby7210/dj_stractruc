@@ -16,12 +16,20 @@ class PipelineSerializer(serializers.ModelSerializer):
         model = Pipeline
         fields = ['ghl_id', 'name', 'LocationId', 'date_added', 'date_updated', 'stages']
 
+class PipelineSubSerializer(serializers.ModelSerializer):
+
+
+    class Meta:
+        model = Pipeline
+        fields = ['ghl_id', 'name', 'LocationId', 'date_added', 'date_updated']
+
 
 class OpportunityReadSerializer(serializers.ModelSerializer):
     assigned_to = GHLUserSerializer(read_only=True)
     contact = ContactSerializer(read_only=True)
-    pipeline = PipelineSerializer(read_only=True)
+    pipeline = PipelineSubSerializer(read_only=True)
     custom_fields = serializers.SerializerMethodField()
+    stage = PipelineStageSerializer()
 
     class Meta:
         model = Opportunity
@@ -32,7 +40,7 @@ class OpportunityReadSerializer(serializers.ModelSerializer):
             'assigned_to',
             'pipeline',
             'contact',
-            'stage_id',
+            'stage',
             'status',
             'created_at',
             'updated_at',
