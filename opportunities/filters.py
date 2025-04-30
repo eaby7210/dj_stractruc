@@ -3,11 +3,36 @@ from django.db.models import Q
 from django.utils import timezone
 from django_filters import widgets
 from django_filters.rest_framework import filters, FilterSet
-from .models import Opportunity, PipelineStage, Pipeline
+from .models import Opportunity, PipelineStage, Pipeline,OpportunityCustomFieldValue
 from core.models import GHLUser, Contact
 
 
+def get_chances_of_closing_choices():
+
+
+    field_key = 'opportunity.chances_of_closing_the_deal'
+    values_qs = OpportunityCustomFieldValue.objects.filter(
+        custom_field__field_key=field_key
+    ).exclude(value__isnull=True).values_list('value', flat=True).distinct()
+
+    choices = [(v, v) for v in values_qs if v is not None]
+
+    choices.append(('null', 'No Value'))
+    return choices
+
 class OpportunityFilter(FilterSet):
+    
+    
+    chances = filters.ChoiceFilter(
+        method='filter_chances_of_closing',
+        label='Chance of Closing the Deal'
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.filters['chances'].extra['choices'] = get_chances_of_closing_choices()
+
+    
     
     FISCAL_PERIOD_CHOICES = (
         ('Q1', 'Q1 (Feb - Apr)'),
@@ -59,6 +84,31 @@ class OpportunityFilter(FilterSet):
         label='Fiscal Period'
     )
     
+    def filter_chances_of_closing(self, queryset, name, value):
+        if value == 'null':
+            return queryset.exclude(
+                custom_field_values__custom_field__field_key='opportunity.chances_of_closing_the_deal'
+            )
+        return queryset.filter(
+            custom_field_values__custom_field__field_key='opportunity.chances_of_closing_the_deal',
+            custom_field_values__value=value
+        )
+     
+    #IF FILTER IS NUMBER ONLY   
+    # def filter_chances_of_closing(self, queryset, name, value):
+    #     if value == 'null':
+    #         return queryset.exclude(
+    #             custom_field_values__custom_field__field_key='opportunity.chances_of_closing_the_deal'
+    #         )
+
+    #     # Normalize value to strip "%" if included, and match strings like "25% chances of closing the deal"
+    #     value = str(value).strip().rstrip('%')
+
+    #     return queryset.filter(
+    #         custom_field_values__custom_field__field_key='opportunity.chances_of_closing_the_deal',
+    #         custom_field_values__value__icontains=f"{value}%"
+    #     )
+            
     def filter_state(self, queryset, name, value):
         if value == 'open':
             return queryset.filter(status='open')

@@ -1,22 +1,22 @@
 import json
+import time
 import base64
 import logging
-import time
 from django.apps import apps
 from django.db import transaction
+from django.utils.timezone import now
+from rest_framework.views import APIView
+from rest_framework import viewsets, status
+from rest_framework.response import Response
+from rest_framework.filters import SearchFilter
+from rest_framework.pagination import PageNumberPagination
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from datetime import datetime, timezone, timedelta
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives import hashes
+# from cryptography.hazmat.primitives.asymmetric import padding
+# from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
-from django.utils.timezone import now
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import viewsets, filters, status
-from rest_framework.filters import SearchFilter
-from rest_framework.pagination import PageNumberPagination
 from .models import Contact, WebhookLog, GHLUser
 from .serializers import (
     ContactSerializer,ContactWithOpportunitiesSerializer,
@@ -53,7 +53,9 @@ class ContactPagination(PageNumberPagination):
 # Contact ViewSet
 class ContactViewSet(viewsets.ModelViewSet):
     queryset = Contact.objects.all()
-    
+    pagination_class = ContactPagination  
+    filter_backends = [SearchFilter]
+    search_fields = ["first_name", "last_name", "email","id"]    
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -62,10 +64,7 @@ class ContactViewSet(viewsets.ModelViewSet):
             return ContactWithOpportunitiesSerializer
         return ContactSerializer
 
-    pagination_class = ContactPagination  
 
-    filter_backends = [filters.SearchFilter]
-    search_fields = ["first_name", "last_name", "email","id"]
 
 
 class GHLUserViewSet(viewsets.ReadOnlyModelViewSet):
