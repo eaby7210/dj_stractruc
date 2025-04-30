@@ -3,7 +3,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django_filters import widgets
 from django_filters.rest_framework import filters, FilterSet
-from .models import Opportunity, PipelineStage
+from .models import Opportunity, PipelineStage, Pipeline
 from core.models import GHLUser, Contact
 
 
@@ -121,3 +121,10 @@ class PipelineStagesFilter(FilterSet):
         fields = [
             'pipeline'
         ]
+        
+class PipelineFilter(FilterSet):
+    stage_name = filters.CharFilter(field_name="stages__name", lookup_expr='icontains')
+
+    class Meta:
+        model = Pipeline
+        fields = ['stage_name']

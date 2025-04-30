@@ -17,7 +17,7 @@ from .serializers import (
     PipelineStageSerializer
     )
 from .models import Opportunity, Pipeline, PipelineStage
-from .filters import OpportunityFilter, PipelineStagesFilter
+from .filters import OpportunityFilter, PipelineStagesFilter, PipelineFilter
 from rest_framework.pagination import PageNumberPagination
 
 
@@ -76,6 +76,12 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
 class PipelineViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Pipeline.objects.all().prefetch_related('stages')
     serializer_class = PipelineSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = PipelineFilter
+    search_fields = [
+        'name'
+    ]
+    ordering_fields = ['date_added']
 
 class PipelineStageViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = PipelineStage.objects.select_related('pipeline')
