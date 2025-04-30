@@ -30,6 +30,7 @@ class OpportunityReadSerializer(serializers.ModelSerializer):
     pipeline = PipelineSubSerializer(read_only=True)
     custom_fields = serializers.SerializerMethodField()
     stage = PipelineStageSerializer()
+    next_step = serializers.SerializerMethodField()
 
     class Meta:
         model = Opportunity
@@ -44,7 +45,7 @@ class OpportunityReadSerializer(serializers.ModelSerializer):
             'status',
             'created_at',
             'updated_at',
-            'custom_fields',
+            'custom_fields','next_step',
         ]
         
     def get_custom_fields(self, obj):
@@ -54,3 +55,12 @@ class OpportunityReadSerializer(serializers.ModelSerializer):
             value = custom_value.value
             custom_fields[field_key.split('.')[1]] = value
         return custom_fields
+    
+    def get_next_step(self, obj):
+        if not obj.stage or not obj.pipeline:
+            return None
+        current_position = obj.stage.position
+        next_stage = obj.pipeline.stages.filter(position__gt=current_position).order_by('position').first()
+        if next_stage:
+            return PipelineStageSerializer(next_stage).data
+        return None
