@@ -8,8 +8,7 @@ from core.models import GHLUser, Contact
 
 
 def get_chances_of_closing_choices():
-
-
+    
     field_key = 'opportunity.chances_of_closing_the_deal'
     values_qs = OpportunityCustomFieldValue.objects.filter(
         custom_field__field_key=field_key
@@ -20,20 +19,8 @@ def get_chances_of_closing_choices():
     choices.append(('null', 'No Value'))
     return choices
 
+
 class OpportunityFilter(FilterSet):
-    
-    
-    chances = filters.ChoiceFilter(
-        method='filter_chances_of_closing',
-        label='Chance of Closing the Deal'
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.filters['chances'].extra['choices'] = get_chances_of_closing_choices()
-
-    
-    
     FISCAL_PERIOD_CHOICES = (
         ('Q1', 'Q1 (Feb - Apr)'),
         ('Q2', 'Q2 (May - Jul)'),
@@ -45,6 +32,38 @@ class OpportunityFilter(FilterSet):
         ('close', 'Close'),
     )
        
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.filters['chances'].extra['choices'] = get_chances_of_closing_choices()
+        
+        qs = kwargs.get("queryset", Opportunity.objects.all())
+        values_qs = OpportunityCustomFieldValue.objects.filter(
+            opportunity__in=qs,
+            custom_field__field_key="opportunity.opportunity_source"
+        ).values_list("value", flat=True)
+
+        sources = set()
+        for val in values_qs:
+            if isinstance(val, list):
+                sources.update(val)
+            elif val:
+                sources.add(val)
+
+        self.filters['opportunity_source'].extra['choices'] = [(v, v) for v in sorted(sources)]
+
+    
+    chances = filters.ChoiceFilter(
+        method='filter_chances_of_closing',
+        label='Chance of Closing the Deal'
+    )
+
+    opportunity_source = filters.ChoiceFilter(
+        method='filter_by_opportunity_source',
+        label='Opportunity Source',
+        choices=[]  
+    )
+    
     state = filters.ChoiceFilter(
         choices=STATE_CHOICES,
         method='filter_state',
@@ -84,6 +103,30 @@ class OpportunityFilter(FilterSet):
         label='Fiscal Period'
     )
     
+    # WORKS IF ITS POSTGRES
+    # def filter_by_opportunity_source(self, queryset, name, value):
+    #     return queryset.filter(
+    #         custom_field_values__custom_field__field_key="opportunity.opportunity_source",
+    #         custom_field_values__value__contains=[value]
+    #     )
+    
+    def filter_by_opportunity_source(self, queryset, name, value):
+        # First narrow to only relevant rows
+        qs = queryset.filter(
+            custom_field_values__custom_field__field_key="opportunity.opportunity_source"
+        )
+
+        # Apply manual filter if DB doesn't support __contains on JSONField
+        filtered_ids = [
+            item.ghl_id for item in qs if any(
+                isinstance(val.value, list) and value in val.value
+                for val in item.custom_field_values.all()
+                if val.custom_field.field_key == "opportunity.opportunity_source"
+            )
+        ]
+
+        return queryset.filter(ghl_id__in=filtered_ids)
+    
     def filter_chances_of_closing(self, queryset, name, value):
         if value == 'null':
             return queryset.exclude(
@@ -93,21 +136,6 @@ class OpportunityFilter(FilterSet):
             custom_field_values__custom_field__field_key='opportunity.chances_of_closing_the_deal',
             custom_field_values__value=value
         )
-     
-    #IF FILTER IS NUMBER ONLY   
-    # def filter_chances_of_closing(self, queryset, name, value):
-    #     if value == 'null':
-    #         return queryset.exclude(
-    #             custom_field_values__custom_field__field_key='opportunity.chances_of_closing_the_deal'
-    #         )
-
-    #     # Normalize value to strip "%" if included, and match strings like "25% chances of closing the deal"
-    #     value = str(value).strip().rstrip('%')
-
-    #     return queryset.filter(
-    #         custom_field_values__custom_field__field_key='opportunity.chances_of_closing_the_deal',
-    #         custom_field_values__value__icontains=f"{value}%"
-    #     )
             
     def filter_state(self, queryset, name, value):
         if value == 'open':

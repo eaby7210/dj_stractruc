@@ -68,7 +68,7 @@ class OpportunityDashView(GenericAPIView):
         except CustomField.DoesNotExist:
             chance_counts = []
         else:
-            # Subquery to get matching custom field value per opportunity
+
             class StripQuotes(Func):
                 function = 'REPLACE'
                 template = "%(function)s(%(expressions)s, '\"', '')"
@@ -85,7 +85,13 @@ class OpportunityDashView(GenericAPIView):
                 raw_chances_value=Coalesce(Subquery(subquery), V('Unknown'), output_field=CharField()),
                 chances_value=StripQuotes(F('raw_chances_value'))
             )
+            
+            opp_source_lists = OpportunityCustomFieldValue.objects.filter(
+                opportunity__in=queryset,
+                custom_field__field_key="opportunity.opportunity_source"
+            ).values_list("value", flat=True)
 
+            opp_source =list(set([item for sublist in opp_source_lists if sublist for item in sublist]))
             # Count grouped by that annotated field
             chance_counts = (
                 annotated_queryset.values('chances_value')
@@ -98,7 +104,8 @@ class OpportunityDashView(GenericAPIView):
             'amount_open': amount_open,
             'open_ops_count': open_ops_count,
             'closed_ops_count': closed_ops_count,
-            'chances':chance_counts
+            'chances':chance_counts,
+            'opp_source':opp_source
 
         }
 
