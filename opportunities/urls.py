@@ -1,7 +1,7 @@
 from django.urls import path, include
 from .views import (
   OpportunityViewSet,PipelineViewSet,
-  PipelineStageViewSet
+  PipelineStageViewSet, OpportunityDashView
 
     )
 from rest_framework.routers import DefaultRouter
@@ -14,5 +14,6 @@ router.register(r'pipeline-stages', PipelineStageViewSet, basename='pipeline-sta
 
 urlpatterns = [
     path('',include(router.urls)),
+    path('opportunity_dash', OpportunityDashView.as_view(), name='opportunity_dashboard')
 
 ]
