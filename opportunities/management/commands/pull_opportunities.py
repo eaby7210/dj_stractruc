@@ -106,6 +106,7 @@ class Command(BaseCommand):
                                 try:
                                     custom_field = CustomField.objects.get(id=custom_field_id)
                                 except CustomField.DoesNotExist:
+                                    # print(f"sample data :\n{json.dumps(item,indent=4)}")
                                     print(f"CustomField with id {custom_field_id} not found, skipping...")
                                     continue
 

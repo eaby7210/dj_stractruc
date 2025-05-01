@@ -74,26 +74,35 @@ class OpportunityDashView(GenericAPIView):
             queryset
             .annotate(date=TruncDate('created_at'))
             .values('date', 'status')
-            .annotate(total=Sum('opp_value'))
+            .annotate(total=Sum('opp_value'), count=Count('ghl_id'))
             .order_by('date')
         )
 
         date_set = sorted({entry['date'] for entry in aggregated_by_date})
         open_amounts = OrderedDict((date, 0) for date in date_set)
         closed_amounts = OrderedDict((date, 0) for date in date_set)
+        
+        open_counts = OrderedDict((date, 0) for date in date_set)
+        closed_counts = OrderedDict((date, 0) for date in date_set)
 
         for entry in aggregated_by_date:
             date = entry['date']
             amount = float(entry['total'] or 0)
+            count = entry['count'] or 0
+
             if entry['status'] == 'open':
                 open_amounts[date] += amount
+                open_counts[date] += count
             else:
                 closed_amounts[date] += amount
+                closed_counts[date] += count
 
         graph_data = {
             "labels": [d.strftime('%Y-%m-%d') for d in date_set],
             "open": list(open_amounts.values()),
-            "closed": list(closed_amounts.values())
+            "closed": list(closed_amounts.values()),
+            "open_counts": list(open_counts.values()),
+            "closed_counts": list(closed_counts.values())
         }
 
         # CHANCE OF CLOSING FIELD
