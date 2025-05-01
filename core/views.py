@@ -23,7 +23,7 @@ from .serializers import (
     ContactSerializer,ContactWithOpportunitiesSerializer,
     GHLUserSerializer
     )
-from .filters import ContactFilter
+from .filters import ContactFilter, GHLuserFilter
 from .services import ContactServices
 from opportunities.services import PipelineServices
 Pipeline= apps.get_model('opportunities', 'Pipeline')
@@ -53,7 +53,7 @@ class ContactPagination(PageNumberPagination):
     max_page_size = 50  # Limit max page size
 
 # Contact ViewSet
-class ContactViewSet(viewsets.ModelViewSet):
+class ContactViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Contact.objects.all()
     pagination_class = ContactPagination  
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -71,10 +71,11 @@ class ContactViewSet(viewsets.ModelViewSet):
 
 
 class GHLUserViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = GHLUser.objects.all().order_by('first_name')
+    queryset = GHLUser.objects.all().order_by('first_name', 'last_name')
     serializer_class = GHLUserSerializer
     lookup_field = 'id'
-    filter_backends = [SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = GHLuserFilter
     search_fields = ['first_name', 'last_name', 'email']
 
 @method_decorator(csrf_exempt, name='dispatch')

@@ -4,26 +4,65 @@ from core.models import Contact, GHLUser
 from opportunities.models import Pipeline, PipelineStage
 
 class ContactFilter(filters.FilterSet):
-    pipeline = filters.ModelChoiceFilter(
-        field_name='opportunity__pipeline',
+
+    
+    pipeline = filters.ModelMultipleChoiceFilter(
         queryset=Pipeline.objects.all(),
-        label='Pipeline',
-        to_field_name='ghl_id'
+        field_name='opportunity__pipeline',
+        to_field_name='ghl_id',
+        label="Pipelines",
+        conjoined=False 
     )
     
-    stage = filters.ModelChoiceFilter(
-        field_name='opportunity__stage',
+    stage = filters.ModelMultipleChoiceFilter(
         queryset=PipelineStage.objects.all(),
-        label='Stage',
-        to_field_name='id'
+        field_name='opportunity__stage',
+        to_field_name='id',
+        label="Pipeline Stages",
+        conjoined=False 
     )
-    assigned_to = filters.ModelChoiceFilter(
-        field_name='opportunity__assigned_to',
+    
+    assigned_to = filters.ModelMultipleChoiceFilter(
         queryset=GHLUser.objects.all(),
-        label='Assigned User',
-        to_field_name='id'  
+        field_name='opportunity__assigned_to',
+        to_field_name='id',
+        label="Assigned Users",
+        conjoined=False 
     )
+
 
     class Meta:
         model = Contact
         fields = ['pipeline', 'stage', 'assigned_to']
+
+
+class GHLuserFilter(filters.FilterSet):
+
+    
+    pipeline = filters.ModelMultipleChoiceFilter(
+        queryset=Pipeline.objects.all(),
+        field_name='opportunity__pipeline',
+        to_field_name='ghl_id',
+        label="Pipelines",
+        conjoined=False 
+    )
+    
+    stage = filters.ModelMultipleChoiceFilter(
+        queryset=PipelineStage.objects.all(),
+        field_name='opportunity__stage',
+        to_field_name='id',
+        label="Pipeline Stages",
+        conjoined=False 
+    )
+    
+    contact = filters.ModelMultipleChoiceFilter(
+        queryset=Contact.objects.all(),  # import Contact model if not already
+        field_name='contact__id',
+        to_field_name='id',
+        label="Contacts",
+        conjoined=False
+    )
+
+    class Meta:
+        model = GHLUser
+        fields = ['pipeline', 'stage', 'contact']
