@@ -15,10 +15,9 @@ class ContactFilter(filters.FilterSet):
     )
     
 
-    
     stage_name = filters.ModelMultipleChoiceFilter(
         queryset=PipelineStage.objects.all(),
-        field_name="opportunity__stage",
+        field_name="opportunity__stage__name",
         to_field_name='name',
         label="Stage Name",
         conjoined=False 
@@ -52,7 +51,7 @@ class GHLuserFilter(filters.FilterSet):
 
     stage_name = filters.ModelMultipleChoiceFilter(
         queryset=PipelineStage.objects.all(),
-        field_name="opportunity__stage",
+        field_name="opportunity__stage__name",
         to_field_name='name',
         label="Stage Name",
         conjoined=False 
@@ -60,7 +59,7 @@ class GHLuserFilter(filters.FilterSet):
     
     contact = filters.ModelMultipleChoiceFilter(
         queryset=Contact.objects.all(),  # import Contact model if not already
-        field_name='contact__id',
+        field_name='opportunity__contact',
         to_field_name='id',
         label="Contacts",
         conjoined=False

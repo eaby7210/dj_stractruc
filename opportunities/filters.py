@@ -93,7 +93,7 @@ class OpportunityFilter(FilterSet):
 
     stage_name = filters.ModelMultipleChoiceFilter(
         queryset=PipelineStage.objects.all(),
-        field_name="stages__name",
+        field_name="stage__name",
         to_field_name='name',
         label="Stage Name",
         conjoined=False 
