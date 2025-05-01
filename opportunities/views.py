@@ -124,6 +124,26 @@ class OpportunityDashView(GenericAPIView):
         except CustomField.DoesNotExist:
             chance_counts = []
 
+        user_aggregation = (
+            queryset
+            .values('assigned_to__id', 'assigned_to__first_name', 'assigned_to__last_name')
+            .annotate(
+                total_opps=Count('ghl_id'),
+                total_value=Sum('opp_value'),
+            )
+            .order_by( '-total_value', '-total_opps')  # Optional: sort by most opportunities
+        )
+
+        assigned_user_stats = [
+            {
+                "user_id": entry["assigned_to__id"],
+                "user_name": f"{entry['assigned_to__first_name']} {entry['assigned_to__last_name']}".strip(),
+                "total_opps": entry["total_opps"],
+                "total_value": float(entry["total_value"] or 0),
+            }
+            for entry in user_aggregation if entry["assigned_to__id"]  # Skip unassigned
+        ]       
+        
         # OPPORTUNITY SOURCE FIELD AGGREGATION
         source_data = defaultdict(lambda: {"count": 0, "total_value": Decimal('0')})
         source_cfvs = OpportunityCustomFieldValue.objects.filter(
@@ -158,12 +178,13 @@ class OpportunityDashView(GenericAPIView):
             'closed_ops_count': closed_ops_count,
             'chances': chance_counts,
             'opp_source': opp_source_stats,
-            'graph_data': graph_data
+            'graph_data': graph_data,
+            'assigned_user_stats':assigned_user_stats
         }
 
         return Response(data)
 
-        return Response(data)
+
 
 class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = OpportunityPagination
