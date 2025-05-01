@@ -3,6 +3,8 @@ from rest_framework.views import APIView
 from django.utils.dateparse import parse_datetime
 from datetime import datetime, timezone, timedelta
 from django.db import transaction
+from collections import defaultdict
+from decimal import Decimal
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from rest_framework.response import Response
@@ -48,8 +50,6 @@ class OpportunityDashView(GenericAPIView):
     
     def get(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
-
-        queryset = self.filter_queryset(self.get_queryset())
         
         open_queryset = queryset.filter(status='open')
         closed_queryset = queryset.exclude(status='open')
@@ -86,12 +86,38 @@ class OpportunityDashView(GenericAPIView):
                 chances_value=StripQuotes(F('raw_chances_value'))
             )
             
-            opp_source_lists = OpportunityCustomFieldValue.objects.filter(
-                opportunity__in=queryset,
-                custom_field__field_key="opportunity.opportunity_source"
-            ).values_list("value", flat=True)
+            source_cfvs = OpportunityCustomFieldValue.objects.filter(
+                    opportunity__in=queryset,
+                    custom_field__field_key="opportunity.opportunity_source"
+                ).select_related('opportunity')
 
-            opp_source =list(set([item for sublist in opp_source_lists if sublist for item in sublist]))
+            # Dictionary to hold aggregation results
+            source_data = defaultdict(lambda: {"count": 0, "total_value": Decimal('0')})
+
+            # Process each value manually
+            for cfv in source_cfvs:
+                source_list = cfv.value if isinstance(cfv.value, list) else []
+                for source in source_list:
+                    if source:
+                        source_data[source]["count"] += 1
+                        source_data[source]["total_value"] += cfv.opportunity.opp_value or 0
+
+            # Calculate average values
+            for source in source_data:
+                count = source_data[source]["count"]
+                total = source_data[source]["total_value"]
+                source_data[source]["average_value"] = total / count if count else 0
+
+            # Convert to list format for response
+            opp_source_stats = [
+                {
+                    "source": source,
+                    "count": data["count"],
+                    "total_value": float(data["total_value"]),
+                    "average_value": float(data["average_value"])
+                }
+                for source, data in source_data.items()
+            ]
             # Count grouped by that annotated field
             chance_counts = (
                 annotated_queryset.values('chances_value')
@@ -105,7 +131,7 @@ class OpportunityDashView(GenericAPIView):
             'open_ops_count': open_ops_count,
             'closed_ops_count': closed_ops_count,
             'chances':chance_counts,
-            'opp_source':opp_source
+            'opp_source':opp_source_stats
 
         }
 
