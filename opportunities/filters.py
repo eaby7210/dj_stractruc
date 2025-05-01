@@ -90,11 +90,12 @@ class OpportunityFilter(FilterSet):
         conjoined=False 
     )
     
-    stage = filters.ModelMultipleChoiceFilter(
+
+    stage_name = filters.ModelMultipleChoiceFilter(
         queryset=PipelineStage.objects.all(),
-        field_name='stage__id',
-        to_field_name='id',
-        label="Pipeline Stages",
+        field_name="stages__name",
+        to_field_name='name',
+        label="Stage Name",
         conjoined=False 
     )
     
@@ -192,7 +193,7 @@ class OpportunityFilter(FilterSet):
         fields = [
             'status', 'state', 'assigned_to',
             'created_at', 'opp_value', 'opp_value',
-            'fiscal_period', 'stage', 'pipeline',
+            'fiscal_period', 'stage_name', 'pipeline',
             ]
             
             
@@ -204,14 +205,28 @@ class PipelineStagesFilter(FilterSet):
         ]
         
 class PipelineFilter(FilterSet):
-    stage_name = filters.ChoiceFilter(label="Stage Name",field_name="stages__name")
+    # stage = filters.ModelMultipleChoiceFilter(
+    #     queryset=PipelineStage.objects.all(),
+    #     field_name='stages__id',
+    #     to_field_name='id',
+    #     label="Pipeline Stages",
+    #     conjoined=False 
+    # )
+    stage_name = filters.ModelMultipleChoiceFilter(
+        queryset=PipelineStage.objects.all(),
+        field_name="stages__name",
+        to_field_name='name',
+        label="Stage Name",
+        conjoined=False 
+    )
+    # stage_name = filters.ChoiceFilter(label="Stage Name",field_name="stages__name")
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        stage_names = PipelineStage.objects.values_list('name', flat=True).distinct()
-        self.filters['stage_name'].extra['choices'] = [(name, name) for name in stage_names]
+    # def __init__(self, *args, **kwargs):
+    #     super().__init__(*args, **kwargs)
+    #     stage_names = PipelineStage.objects.values_list('name', flat=True).distinct()
+    #     self.filters['stage_name'].extra['choices'] = [(name, name) for name in stage_names]
 
 
     class Meta:
         model = Pipeline
-        fields = ['stage_name']
+        fields = [ 'stage_name']

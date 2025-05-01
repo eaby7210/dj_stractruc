@@ -14,11 +14,13 @@ class ContactFilter(filters.FilterSet):
         conjoined=False 
     )
     
-    stage = filters.ModelMultipleChoiceFilter(
+
+    
+    stage_name = filters.ModelMultipleChoiceFilter(
         queryset=PipelineStage.objects.all(),
-        field_name='opportunity__stage',
-        to_field_name='id',
-        label="Pipeline Stages",
+        field_name="opportunity__stage",
+        to_field_name='name',
+        label="Stage Name",
         conjoined=False 
     )
     
@@ -33,7 +35,7 @@ class ContactFilter(filters.FilterSet):
 
     class Meta:
         model = Contact
-        fields = ['pipeline', 'stage', 'assigned_to']
+        fields = ['pipeline', 'stage_name', 'assigned_to']
 
 
 class GHLuserFilter(filters.FilterSet):
@@ -47,11 +49,12 @@ class GHLuserFilter(filters.FilterSet):
         conjoined=False 
     )
     
-    stage = filters.ModelMultipleChoiceFilter(
+
+    stage_name = filters.ModelMultipleChoiceFilter(
         queryset=PipelineStage.objects.all(),
-        field_name='opportunity__stage',
-        to_field_name='id',
-        label="Pipeline Stages",
+        field_name="opportunity__stage",
+        to_field_name='name',
+        label="Stage Name",
         conjoined=False 
     )
     
@@ -65,4 +68,4 @@ class GHLuserFilter(filters.FilterSet):
 
     class Meta:
         model = GHLUser
-        fields = ['pipeline', 'stage', 'contact']
+        fields = ['pipeline', 'stage_name', 'contact']
