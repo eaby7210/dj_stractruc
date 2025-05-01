@@ -3,7 +3,8 @@ from rest_framework.views import APIView
 from django.utils.dateparse import parse_datetime
 from datetime import datetime, timezone, timedelta
 from django.db import transaction
-from collections import defaultdict
+from collections import defaultdict,OrderedDict
+from django.db.models.functions import TruncDate
 from decimal import Decimal
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -48,92 +49,119 @@ class OpportunityDashView(GenericAPIView):
     ordering_fields = ['created_at', 'opp_value', 'name']
     lookup_field = "ghl_id"
     
+    def get_queryset(self):
+        return super().get_queryset()
+
     def get(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
-        
-        open_queryset = queryset.filter(status='open')
-        closed_queryset = queryset.exclude(status='open')
 
-        # total_value_by_status = queryset.values('status').annotate(total_value=Sum('opp_value'))
+        # Total opportunity amount and count
+        total_count = queryset.count()
+        amout_total = queryset.aggregate(total=Sum('opp_value'))['total'] or 0
 
-        amount_closed = closed_queryset.aggregate(total=Sum('opp_value'))['total'] or 0
-        amount_open = open_queryset.aggregate(total=Sum('opp_value'))['total'] or 0
+        # Split into open/closed once for reuse
+        open_qs = queryset.filter(status='open')
+        closed_qs = queryset.exclude(status='open')
 
-        open_ops_count = open_queryset.count()
-        closed_ops_count = closed_queryset.count()
+        # Amount and count breakdown
+        amount_open = open_qs.aggregate(total=Sum('opp_value'))['total'] or 0
+        amount_closed = closed_qs.aggregate(total=Sum('opp_value'))['total'] or 0
+        open_ops_count = open_qs.count()
+        closed_ops_count = closed_qs.count()
+
+        # GRAPH: Daily total of open/closed opportunity value
+        aggregated_by_date = (
+            queryset
+            .annotate(date=TruncDate('created_at'))
+            .values('date', 'status')
+            .annotate(total=Sum('opp_value'))
+            .order_by('date')
+        )
+
+        date_set = sorted({entry['date'] for entry in aggregated_by_date})
+        open_amounts = OrderedDict((date, 0) for date in date_set)
+        closed_amounts = OrderedDict((date, 0) for date in date_set)
+
+        for entry in aggregated_by_date:
+            date = entry['date']
+            amount = float(entry['total'] or 0)
+            if entry['status'] == 'open':
+                open_amounts[date] += amount
+            else:
+                closed_amounts[date] += amount
+
+        graph_data = {
+            "labels": [d.strftime('%Y-%m-%d') for d in date_set],
+            "open": list(open_amounts.values()),
+            "closed": list(closed_amounts.values())
+        }
+
+        # CHANCE OF CLOSING FIELD
         CUSTOM_FIELD_KEY = 'opportunity.chances_of_closing_the_deal'
-        
         try:
             custom_field = CustomField.objects.get(field_key=CUSTOM_FIELD_KEY)
-        except CustomField.DoesNotExist:
-            chance_counts = []
-        else:
 
             class StripQuotes(Func):
                 function = 'REPLACE'
                 template = "%(function)s(%(expressions)s, '\"', '')"
                 output_field = CharField()
 
-            # Subquery stays the same
             subquery = OpportunityCustomFieldValue.objects.filter(
                 opportunity=OuterRef('pk'),
                 custom_field=custom_field
             ).values('value')[:1]
 
-            # Annotate and clean the string value
-            annotated_queryset = queryset.annotate(
+            annotated = queryset.annotate(
                 raw_chances_value=Coalesce(Subquery(subquery), V('Unknown'), output_field=CharField()),
                 chances_value=StripQuotes(F('raw_chances_value'))
             )
-            
-            source_cfvs = OpportunityCustomFieldValue.objects.filter(
-                    opportunity__in=queryset,
-                    custom_field__field_key="opportunity.opportunity_source"
-                ).select_related('opportunity')
 
-            # Dictionary to hold aggregation results
-            source_data = defaultdict(lambda: {"count": 0, "total_value": Decimal('0')})
-
-            # Process each value manually
-            for cfv in source_cfvs:
-                source_list = cfv.value if isinstance(cfv.value, list) else []
-                for source in source_list:
-                    if source:
-                        source_data[source]["count"] += 1
-                        source_data[source]["total_value"] += cfv.opportunity.opp_value or 0
-
-            # Calculate average values
-            for source in source_data:
-                count = source_data[source]["count"]
-                total = source_data[source]["total_value"]
-                source_data[source]["average_value"] = total / count if count else 0
-
-            # Convert to list format for response
-            opp_source_stats = [
-                {
-                    "source": source,
-                    "count": data["count"],
-                    "total_value": float(data["total_value"]),
-                    "average_value": float(data["average_value"])
-                }
-                for source, data in source_data.items()
-            ]
-            # Count grouped by that annotated field
             chance_counts = (
-                annotated_queryset.values('chances_value')
+                annotated.values('chances_value')
                 .annotate(count=Count('ghl_id'))
                 .order_by('chances_value')
             )
+        except CustomField.DoesNotExist:
+            chance_counts = []
 
+        # OPPORTUNITY SOURCE FIELD AGGREGATION
+        source_data = defaultdict(lambda: {"count": 0, "total_value": Decimal('0')})
+        source_cfvs = OpportunityCustomFieldValue.objects.filter(
+            opportunity__in=queryset,
+            custom_field__field_key="opportunity.opportunity_source"
+        ).select_related('opportunity')
+
+        for cfv in source_cfvs:
+            sources = cfv.value if isinstance(cfv.value, list) else []
+            for source in sources:
+                if source:
+                    source_data[source]["count"] += 1
+                    source_data[source]["total_value"] += cfv.opportunity.opp_value or 0
+
+        opp_source_stats = [
+            {
+                "source": source,
+                "count": data["count"],
+                "total_value": float(data["total_value"]),
+                "average_value": float(data["total_value"] / data["count"]) if data["count"] else 0
+            }
+            for source, data in source_data.items()
+        ]
+
+        # FINAL RESPONSE
         data = {
+            'amout_total': amout_total,
+            'total_count': total_count,
             'amount_closed': amount_closed,
             'amount_open': amount_open,
             'open_ops_count': open_ops_count,
             'closed_ops_count': closed_ops_count,
-            'chances':chance_counts,
-            'opp_source':opp_source_stats
-
+            'chances': chance_counts,
+            'opp_source': opp_source_stats,
+            'graph_data': graph_data
         }
+
+        return Response(data)
 
         return Response(data)
 
