@@ -81,6 +81,23 @@ class OpportunityFilter(FilterSet):
         widget=widgets.RangeWidget(attrs={'type': 'number'})
     )
     
+    
+    pipeline = filters.ModelMultipleChoiceFilter(
+        queryset=Pipeline.objects.all(),
+        field_name='pipeline__ghl_id',
+        to_field_name='ghl_id',
+        label="Pipelines",
+        conjoined=False 
+    )
+    
+    stage = filters.ModelMultipleChoiceFilter(
+        queryset=PipelineStage.objects.all(),
+        field_name='stage__id',
+        to_field_name='id',
+        label="Pipeline Stages",
+        conjoined=False 
+    )
+    
     assigned_to = filters.ModelMultipleChoiceFilter(
         queryset=GHLUser.objects.all(),
         field_name='assigned_to__id',
@@ -170,13 +187,13 @@ class OpportunityFilter(FilterSet):
                     q_filters |= Q(created_at__month=1, created_at__year=cy + 1)
 
         return queryset.filter(q_filters)
-        class Meta:
-            model = Opportunity
-            fields = [
-                'status', 'state', 'assigned_to',
-                'created_at', 'opp_value', 'opp_value',
-                'fiscal_period', 'stage', 'pipeline',
-                ]
+    class Meta:
+        model = Opportunity
+        fields = [
+            'status', 'state', 'assigned_to',
+            'created_at', 'opp_value', 'opp_value',
+            'fiscal_period', 'stage', 'pipeline',
+            ]
             
             
 class PipelineStagesFilter(FilterSet):

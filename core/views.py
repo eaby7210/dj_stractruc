@@ -8,7 +8,8 @@ from django.utils.timezone import now
 from rest_framework.views import APIView
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from rest_framework.filters import SearchFilter
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.pagination import PageNumberPagination
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
@@ -22,6 +23,7 @@ from .serializers import (
     ContactSerializer,ContactWithOpportunitiesSerializer,
     GHLUserSerializer
     )
+from .filters import ContactFilter
 from .services import ContactServices
 from opportunities.services import PipelineServices
 Pipeline= apps.get_model('opportunities', 'Pipeline')
@@ -54,7 +56,8 @@ class ContactPagination(PageNumberPagination):
 class ContactViewSet(viewsets.ModelViewSet):
     queryset = Contact.objects.all()
     pagination_class = ContactPagination  
-    filter_backends = [SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = ContactFilter
     search_fields = ["first_name", "last_name", "email","id"]    
 
     def get_serializer_class(self):

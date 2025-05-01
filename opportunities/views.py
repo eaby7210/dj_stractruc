@@ -33,7 +33,7 @@ class OpportunityPagination(PageNumberPagination):
     max_page_size = 50  
 
 class OpportunityDashView(GenericAPIView):
-    pagination_class = OpportunityPagination
+    # pagination_class = OpportunityPagination
     queryset = Opportunity.objects.select_related("assigned_to", "pipeline", "contact").prefetch_related("custom_field_values").all()
     serializer_class = OpportunityReadSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]

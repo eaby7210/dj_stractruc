@@ -10,6 +10,7 @@ class ContactFilter(filters.FilterSet):
         label='Pipeline',
         to_field_name='ghl_id'
     )
+    
     stage = filters.ModelChoiceFilter(
         field_name='opportunity__stage',
         queryset=PipelineStage.objects.all(),
