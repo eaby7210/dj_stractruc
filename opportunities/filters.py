@@ -53,18 +53,18 @@ class OpportunityFilter(FilterSet):
         self.filters['opportunity_source'].extra['choices'] = [(v, v) for v in sorted(sources)]
 
     
-    chances = filters.ChoiceFilter(
+    chances = filters.MultipleChoiceFilter(
         method='filter_chances_of_closing',
         label='Chance of Closing the Deal'
     )
 
-    opportunity_source = filters.ChoiceFilter(
+    opportunity_source = filters.MultipleChoiceFilter(
         method='filter_by_opportunity_source',
         label='Opportunity Source',
-        choices=[]  
+        choices=[]
     )
     
-    state = filters.ChoiceFilter(
+    state = filters.MultipleChoiceFilter(
         choices=STATE_CHOICES,
         method='filter_state',
         label='Opportunity State'
@@ -97,7 +97,7 @@ class OpportunityFilter(FilterSet):
         conjoined=False
     )
     
-    fiscal_period = filters.ChoiceFilter(
+    fiscal_period = filters.MultipleChoiceFilter(
         choices=FISCAL_PERIOD_CHOICES,
         method='filter_fiscal_period',
         label='Fiscal Period'
@@ -110,16 +110,14 @@ class OpportunityFilter(FilterSet):
     #         custom_field_values__value__contains=[value]
     #     )
     
-    def filter_by_opportunity_source(self, queryset, name, value):
-        # First narrow to only relevant rows
+    def filter_by_opportunity_source(self, queryset, name, values):
         qs = queryset.filter(
             custom_field_values__custom_field__field_key="opportunity.opportunity_source"
         )
 
-        # Apply manual filter if DB doesn't support __contains on JSONField
         filtered_ids = [
             item.ghl_id for item in qs if any(
-                isinstance(val.value, list) and value in val.value
+                isinstance(val.value, list) and any(v in val.value for v in values)
                 for val in item.custom_field_values.all()
                 if val.custom_field.field_key == "opportunity.opportunity_source"
             )
@@ -127,72 +125,60 @@ class OpportunityFilter(FilterSet):
 
         return queryset.filter(ghl_id__in=filtered_ids)
     
-    def filter_chances_of_closing(self, queryset, name, value):
-        if value == 'null':
-            return queryset.exclude(
+    def filter_chances_of_closing(self, queryset, name, values):
+        if 'null' in values:
+            queryset = queryset.exclude(
                 custom_field_values__custom_field__field_key='opportunity.chances_of_closing_the_deal'
             )
-        return queryset.filter(
-            custom_field_values__custom_field__field_key='opportunity.chances_of_closing_the_deal',
-            custom_field_values__value=value
-        )
+            values = [v for v in values if v != 'null']
+
+        if values:
+            queryset = queryset.filter(
+                custom_field_values__custom_field__field_key='opportunity.chances_of_closing_the_deal',
+                custom_field_values__value__in=values
+            )
+        return queryset
+
             
-    def filter_state(self, queryset, name, value):
-        if value == 'open':
+    def filter_state(self, queryset, name, values):
+        if 'open' in values and 'close' in values:
+            return queryset
+        elif 'open' in values:
             return queryset.filter(status='open')
-        if value == 'close':
+        elif 'close' in values:
             return queryset.exclude(status='open')
         return queryset
     
-    def filter_fiscal_period(self, queryset, name, value):
+    def filter_fiscal_period(self, queryset, name, values):
         today = timezone.now().date()
         cy, cm = today.year, today.month
+        q_filters = Q()
 
-        if value == 'Q1':
-            return queryset.filter(
-                created_at__month__in=[2, 3, 4],
-                created_at__year=cy
-            )
+        for value in values:
+            if value == 'Q1':
+                q_filters |= Q(created_at__month__in=[2, 3, 4], created_at__year=cy)
+            elif value == 'Q2':
+                q_filters |= Q(created_at__month__in=[5, 6, 7], created_at__year=cy)
+            elif value == 'Q3':
+                q_filters |= Q(created_at__month__in=[8, 9, 10], created_at__year=cy)
+            elif value == 'Q4':
+                if cm == 1:
+                    q_filters |= Q(created_at__month__in=[11, 12], created_at__year=cy - 1)
+                    q_filters |= Q(created_at__month=1, created_at__year=cy)
+                else:
+                    q_filters |= Q(created_at__month__in=[11, 12], created_at__year=cy)
+                    q_filters |= Q(created_at__month=1, created_at__year=cy + 1)
 
-        if value == 'Q2':
-            return queryset.filter(
-                created_at__month__in=[5, 6, 7],
-                created_at__year=cy
-            )
-
-        if value == 'Q3':
-            return queryset.filter(
-                created_at__month__in=[8, 9, 10],
-                created_at__year=cy
-            )
-
-        # Q4 is Nov–Dec + Jan
-        if value == 'Q4':
-            if cm == 1:
-                # In January → treat Jan as part of last fiscal year's Q4
-                return queryset.filter(
-                    Q(created_at__month__in=[11, 12], created_at__year=cy - 1) |
-                    Q(created_at__month=1, created_at__year=cy)
-                )
-            else:
-                # Any other month → we're in fiscal year cy, so Jan belongs to next calendar year
-                return queryset.filter(
-                    Q(created_at__month__in=[11, 12], created_at__year=cy) |
-                    Q(created_at__month=1, created_at__year=cy + 1)
-                )
-
-        return queryset
-
-
-    class Meta:
-        model = Opportunity
-        fields = [
-            'status', 'state', 'assigned_to',
-            'created_at', 'opp_value', 'opp_value',
-            'fiscal_period', 'stage', 'pipeline',
-            ]
-        
-        
+        return queryset.filter(q_filters)
+        class Meta:
+            model = Opportunity
+            fields = [
+                'status', 'state', 'assigned_to',
+                'created_at', 'opp_value', 'opp_value',
+                'fiscal_period', 'stage', 'pipeline',
+                ]
+            
+            
 class PipelineStagesFilter(FilterSet):
     class Meta:
         model = PipelineStage

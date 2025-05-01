@@ -167,7 +167,7 @@ class OpportunityDashView(GenericAPIView):
 
 class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = OpportunityPagination
-    queryset = Opportunity.objects.select_related("assigned_to", "pipeline", "contact").prefetch_related("custom_field_values").all()
+    queryset = Opportunity.objects.select_related("assigned_to", "pipeline", "contact").prefetch_related("custom_field_values").all().order_by('-created_at')
     serializer_class = OpportunityReadSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = OpportunityFilter
