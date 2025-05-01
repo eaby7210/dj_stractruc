@@ -198,10 +198,34 @@ class OpportunityFilter(FilterSet):
             
             
 class PipelineStagesFilter(FilterSet):
+    pipeline = filters.ModelMultipleChoiceFilter(
+        queryset=Pipeline.objects.all(),
+        field_name='pipeline__ghl_id',
+        to_field_name='ghl_id',
+        label="Pipelines",
+        conjoined=False 
+    )
+    
+    contact = filters.ModelMultipleChoiceFilter(
+        queryset=Contact.objects.all(),  # import Contact model if not already
+        field_name='opportunities__contact__id',
+        to_field_name='id',
+        label="Contacts",
+        conjoined=False
+    )
+    
+    assigned_to = filters.ModelMultipleChoiceFilter(
+        queryset=GHLUser.objects.all(),
+        field_name='opportunities__assigned_to__id',
+        to_field_name='id',
+        label="Assigned Users",
+        conjoined=False 
+    )
+    
     class Meta:
         model = PipelineStage
         fields = [
-            'pipeline'
+            'pipeline','contact', 'assigned_to'
         ]
         
 class PipelineFilter(FilterSet):
@@ -219,6 +243,21 @@ class PipelineFilter(FilterSet):
         label="Stage Name",
         conjoined=False 
     )
+    
+    contact = filters.ModelMultipleChoiceFilter(
+        queryset=Contact.objects.all(),  # import Contact model if not already
+        field_name='opportunities__contact__id',
+        to_field_name='id',
+        label="Contacts",
+        conjoined=False
+    )
+    assigned_to = filters.ModelMultipleChoiceFilter(
+        queryset=GHLUser.objects.all(),
+        field_name='opportunities__assigned_to__id',
+        to_field_name='id',
+        label="Assigned Users",
+        conjoined=False 
+    )
     # stage_name = filters.ChoiceFilter(label="Stage Name",field_name="stages__name")
     
     # def __init__(self, *args, **kwargs):
@@ -229,4 +268,4 @@ class PipelineFilter(FilterSet):
 
     class Meta:
         model = Pipeline
-        fields = [ 'stage_name']
+        fields = [ 'stage_name', 'contact', 'assigned_to']
