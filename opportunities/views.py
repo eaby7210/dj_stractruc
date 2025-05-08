@@ -13,8 +13,8 @@ from rest_framework import viewsets,status
 from rest_framework.generics import GenericAPIView
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Sum,Func,F, Count,Count, Q, OuterRef,CharField, Subquery, Value as V
-from django.db.models.functions import Coalesce
+from django.db.models import Sum,Func,F,Count, Q, OuterRef,CharField,When, Case,Subquery,DecimalField,IntegerField, Value as V
+from django.db.models.functions import Coalesce,TruncMonth
 from core.services import ContactServices
 from core.models import CustomField
 from .services import PipelineServices
@@ -25,6 +25,10 @@ from .serializers import (
 from .models import Opportunity, Pipeline, PipelineStage, OpportunityCustomFieldValue
 from .filters import OpportunityFilter, PipelineStagesFilter, PipelineFilter
 from rest_framework.pagination import PageNumberPagination
+
+
+
+
 
 
 class OpportunityPagination(PageNumberPagination):
@@ -69,43 +73,40 @@ class OpportunityDashView(GenericAPIView):
         open_ops_count = open_qs.count()
         closed_ops_count = closed_qs.count()
 
-        # GRAPH: Daily total of open/closed opportunity value
-        aggregated_by_date = (
+        aggregated_by_month = (
             queryset
-            .annotate(date=TruncDate('created_at'))
-            .values('date', 'status')
+            .annotate(month=TruncMonth('created_at'))
+            .values('month', 'status')
             .annotate(total=Sum('opp_value'), count=Count('ghl_id'))
-            .order_by('date')
+            .order_by('month')
         )
 
-        date_set = sorted({entry['date'] for entry in aggregated_by_date})
-        open_amounts = OrderedDict((date, 0) for date in date_set)
-        closed_amounts = OrderedDict((date, 0) for date in date_set)
-        
-        open_counts = OrderedDict((date, 0) for date in date_set)
-        closed_counts = OrderedDict((date, 0) for date in date_set)
+        month_set = sorted({entry['month'] for entry in aggregated_by_month})
+        open_amounts = OrderedDict((month, 0) for month in month_set)
+        closed_amounts = OrderedDict((month, 0) for month in month_set)
 
-        for entry in aggregated_by_date:
-            date = entry['date']
+        open_counts = OrderedDict((month, 0) for month in month_set)
+        closed_counts = OrderedDict((month, 0) for month in month_set)
+
+        for entry in aggregated_by_month:
+            month = entry['month']
             amount = float(entry['total'] or 0)
             count = entry['count'] or 0
 
             if entry['status'] == 'open':
-                open_amounts[date] += amount
-                open_counts[date] += count
+                open_amounts[month] += amount
+                open_counts[month] += count
             else:
-                closed_amounts[date] += amount
-                closed_counts[date] += count
+                closed_amounts[month] += amount
+                closed_counts[month] += count
 
         graph_data = {
-            "labels": [d.strftime('%Y-%m-%d') for d in date_set],
+            "labels": [m.strftime('%Y-%m') for m in month_set],  # YYYY-MM format for months
             "open": list(open_amounts.values()),
             "closed": list(closed_amounts.values()),
             "open_counts": list(open_counts.values()),
             "closed_counts": list(closed_counts.values())
         }
-
-        # CHANCE OF CLOSING FIELD
         CUSTOM_FIELD_KEY = 'opportunity.chances_of_closing_the_deal'
         try:
             custom_field = CustomField.objects.get(field_key=CUSTOM_FIELD_KEY)
@@ -127,7 +128,10 @@ class OpportunityDashView(GenericAPIView):
 
             chance_counts = (
                 annotated.values('chances_value')
-                .annotate(count=Count('ghl_id'))
+                .annotate(
+                    count=Count('ghl_id'),
+                    total_value=Sum('opp_value')
+                    )
                 .order_by('chances_value')
             )
         except CustomField.DoesNotExist:
@@ -139,9 +143,38 @@ class OpportunityDashView(GenericAPIView):
             .annotate(
                 total_opps=Count('ghl_id'),
                 total_value=Sum('opp_value'),
+
+                open_value=Sum(
+                    Case(
+                        When(status='open', then='opp_value'),
+                        default=V(0),
+                        output_field=DecimalField()
+                    )
+                ),
+                open_count=Count(
+                    Case(
+                        When(status='open', then=1),
+                        output_field=IntegerField()
+                    )
+                ),
+
+                closed_value=Sum(
+                    Case(
+                        When(~Q(status='open'), then='opp_value'),
+                        default=V(0),
+                        output_field=DecimalField()
+                    )
+                ),
+                closed_count=Count(
+                    Case(
+                        When(~Q(status='open'), then=1),
+                        output_field=IntegerField()
+                    )
+                ),
             )
-            .order_by( '-total_value', '-total_opps')  # Optional: sort by most opportunities
+            .order_by('-total_value', '-total_opps')
         )
+
 
         assigned_user_stats = [
             {
@@ -149,6 +182,10 @@ class OpportunityDashView(GenericAPIView):
                 "user_name": f"{entry['assigned_to__first_name']} {entry['assigned_to__last_name']}".strip(),
                 "total_opps": entry["total_opps"],
                 "total_value": float(entry["total_value"] or 0),
+                "open_value": float(entry["open_value"] or 0),
+                "open_count": entry["open_count"],
+                "closed_value": float(entry["closed_value"] or 0),
+                "closed_count": entry["closed_count"],
             }
             for entry in user_aggregation if entry["assigned_to__id"]  # Skip unassigned
         ]       
@@ -173,6 +210,7 @@ class OpportunityDashView(GenericAPIView):
                 "count": data["count"],
                 "total_value": float(data["total_value"]),
                 "average_value": float(data["total_value"] / data["count"]) if data["count"] else 0
+                
             }
             for source, data in source_data.items()
         ]
