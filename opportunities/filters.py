@@ -4,7 +4,9 @@ from django.utils import timezone
 from django_filters import widgets
 from django_filters.rest_framework import filters, FilterSet
 from .models import Opportunity, PipelineStage, Pipeline,OpportunityCustomFieldValue
+from core.models import CustomField
 from core.models import GHLUser, Contact
+from django.forms.widgets import DateInput
 
 
 def get_chances_of_closing_choices():
@@ -121,12 +123,61 @@ class OpportunityFilter(FilterSet):
         label='Fiscal Period'
     )
     
-    # WORKS IF ITS POSTGRES
-    # def filter_by_opportunity_source(self, queryset, name, value):
-    #     return queryset.filter(
-    #         custom_field_values__custom_field__field_key="opportunity.opportunity_source",
-    #         custom_field_values__value__contains=[value]
-    #     )
+    estimated_closing_date = filters.DateFromToRangeFilter(
+        method='filter_estimated_closing_date',
+        label="Estimated Closing Date Range",
+        widget=widgets.RangeWidget(attrs={'type': 'date'})     
+    )
+    estimated_delivery_date = filters.DateFromToRangeFilter(
+        method='filter_estimated_delivery_date',
+        label="Estimated Delivery Date Range",
+        widget=widgets.RangeWidget(attrs={'type': 'date'})     
+    )
+    
+    
+    def filter_estimated_delivery_date(self, queryset, name, value):
+        """
+        Filters using a date range on the JSONField 'value' in OpportunityCustomFieldValue
+        for the field_key 'opportunity.estimated_delivery_date'.
+        """
+        field_key = "opportunity.estimated_delivery_date"
+        try:
+            custom_field = CustomField.objects.get(field_key=field_key)
+        except CustomField.DoesNotExist:
+            return queryset.none()
+
+        filter_kwargs = {
+            "custom_field_values__custom_field": custom_field,
+        }
+
+        if value.start:
+            filter_kwargs["custom_field_values__value__gte"] = value.start.isoformat()
+        if value.stop:
+            filter_kwargs["custom_field_values__value__lte"] = value.stop.isoformat()
+
+        return queryset.filter(**filter_kwargs)
+    
+    def filter_estimated_closing_date(self, queryset, name, value):
+        """
+        Filters using a date range on the JSONField 'value' in OpportunityCustomFieldValue
+        for the field_key 'opportunity.estimated_closing_date'.
+        """
+        field_key = "opportunity.estimated_closing_date"
+        try:
+            custom_field = CustomField.objects.get(field_key=field_key)
+        except CustomField.DoesNotExist:
+            return queryset.none()
+
+        filter_kwargs = {
+            "custom_field_values__custom_field": custom_field,
+        }
+
+        if value.start:
+            filter_kwargs["custom_field_values__value__gte"] = value.start.isoformat()
+        if value.stop:
+            filter_kwargs["custom_field_values__value__lte"] = value.stop.isoformat()
+
+        return queryset.filter(**filter_kwargs)
     
     def filter_by_opportunity_source(self, queryset, name, values):
         qs = queryset.filter(
@@ -188,6 +239,9 @@ class OpportunityFilter(FilterSet):
                     q_filters |= Q(created_at__month=1, created_at__year=cy + 1)
 
         return queryset.filter(q_filters)
+    
+    
+    
     class Meta:
         model = Opportunity
         fields = [
