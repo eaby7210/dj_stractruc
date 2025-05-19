@@ -1,5 +1,7 @@
 import logging
 import json
+from datetime import datetime
+from django.utils.timezone import make_aware
 from django.core.management.base import BaseCommand
 from opportunities.services import OpportunityServices
 from opportunities.models import Pipeline, Opportunity, OpportunityCustomFieldValue, PipelineStage
@@ -97,12 +99,20 @@ class Command(BaseCommand):
                                 field_value = (
                                     field.get("fieldValueString") or
                                     field.get("fieldValueArray") or
+                                    field.get("fieldValueDate") or
                                     field.get("fieldValue")
                                 )
+                                if field.get("fieldValueDate"):
+                                    timestamp_ms = field_value
+                                    timestamp_s = timestamp_ms / 1000
+                                    aware_dt = make_aware(datetime.fromtimestamp(timestamp_s))
 
+                                    field_value =aware_dt.date().isoformat()
                                 if not custom_field_id:
                                     continue 
-                                
+                                if custom_field_id == "4Uki4FTLW0s4DXuWA63D":
+                                    print(f"opportunity: {json.dumps(item, indent=4)}")
+                      
                                 try:
                                     custom_field = CustomField.objects.get(id=custom_field_id)
                                 except CustomField.DoesNotExist:

@@ -20,7 +20,6 @@ django-celery-beat = "*"
 djangorestframework-simplejwt = "*"
 redis = "*"
 python-decouple = "*"
-
 [dev-packages]
 
 [requires]

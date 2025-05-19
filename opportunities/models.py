@@ -31,7 +31,7 @@ class Opportunity(models.Model):
     stage = models.ForeignKey(PipelineStage, on_delete=models.SET_NULL, null=True, blank=True, related_name="opportunities")
     status = models.CharField(max_length=50, db_index=True)
     created_at = models.DateTimeField(db_index=True)
-    updated_at = models.DateTimeField()
+    updated_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"Opportunity id:{self.ghl_id} - {self.name}"
