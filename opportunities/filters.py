@@ -76,6 +76,12 @@ class OpportunityFilter(FilterSet):
         label="Created Date (range)",
         widget=widgets.RangeWidget(attrs={'type': 'date'})
     )
+    
+    updated_at = filters.DateFromToRangeFilter(
+        field_name='updated_at',
+        label="Updated Date (range)",
+        widget=widgets.RangeWidget(attrs={'type': 'date'})
+    )
    
     opp_value = filters.RangeFilter(
         field_name="opp_value",
@@ -248,6 +254,7 @@ class OpportunityFilter(FilterSet):
             'status', 'state', 'assigned_to',
             'created_at', 'opp_value', 'opp_value',
             'fiscal_period', 'stage_name', 'pipeline',
+            'updated_at'
             ]
             
             
