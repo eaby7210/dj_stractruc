@@ -42,9 +42,10 @@ class Contact(models.Model):
     country = models.CharField(max_length=10,null=True, blank=True)
     location_id = models.CharField(max_length=50, null=True, blank=True)
     type = models.CharField(max_length=20, choices=[("lead", "Lead"), ("customer", "Customer")],null=True, blank=True)
-    date_added = models.DateTimeField(default=now )  
-    date_updated = models.DateTimeField(auto_now=True)  
+    date_added = models.DateTimeField(null=True, blank=True)  
+    date_updated = models.DateTimeField(null=True, blank=True)  
     dnd = models.BooleanField(default=False)
+    company_name = models.CharField(max_length=100, null=True, blank=True)
     
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.email})"

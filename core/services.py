@@ -126,6 +126,7 @@ class ContactServiceError(Exception):
 
 class ContactServices:
     
+
     @staticmethod
     def get_contacts(location_id,query=None, url=None, limit=LIMIT_PER_PAGE):
         """
@@ -154,26 +155,6 @@ class ContactServices:
             return response.json()
         else:
             raise ContactServiceError(f"API request failed: {response.status_code}")
-
-    @staticmethod
-    def push_contact(contact_obj :Contact, data):
-        token_obj = OAuthServices.get_valid_access_token_obj(contact_obj.location_id)
-        headers = {
-            "Authorization": f"Bearer {token_obj.access_token}",
-            "Content-Type": "application/json",
-            "Version": API_VERSION,
-        }
-
-        url = f"{BASE_URL}/contacts/{contact_obj.id}"
-      
-
-        response = requests.put(url, headers=headers, json=data)
-
-        if response.status_code == 200:
-            return response.json()
-        else:
-            raise ContactServiceError(f"API request failed: {response.status_code}")
-
     
     @staticmethod
     def pull_contacts(query=None):
@@ -182,29 +163,51 @@ class ContactServices:
         """
         imported_contacts_summary = []
         location_ids = list(OAuthToken.objects.values_list('LocationId', flat=True))
+
         for location_id in location_ids:
-            tokenobj :OAuthToken = OAuthServices.get_valid_access_token_obj(location_id)
+            tokenobj: OAuthToken = OAuthServices.get_valid_access_token_obj(location_id)
             all_contacts = []
             url = None
+            start_after_id = None
+            start_after = None
             i = 0
 
             while True:
-                response_data = ContactServices.get_contacts(location_id=tokenobj.LocationId,query=query, url=url)
+                # If there is a startAfter or startAfterId, include them in the parameters
+                params = {
+                    "locationId": tokenobj.LocationId,
+                    "limit": LIMIT_PER_PAGE,
+                }
+                if query:
+                    params["query"] = query
+                if start_after:
+                    params["startAfter"] = start_after
+                if start_after_id:
+                    params["startAfterId"] = start_after_id
+
+                # Fetch contacts from the API
+                response_data = ContactServices.get_contacts(location_id=tokenobj.LocationId, query=query, url=url)
+
                 contacts = response_data.get("contacts", [])
                 all_contacts.extend(contacts)
 
-                # print(json.dumps(contacts,indent=4))
-                print(len(all_contacts), i, end='\n\n')
-                if not response_data.get("meta", {}).get("nextPageURL"):
+                # Check if we should continue to the next page
+                meta = response_data.get("meta", {})
+                next_page_url = meta.get("nextPageUrl")
+                start_after_id = meta.get("startAfterId")
+                start_after = meta.get("startAfter")
+                print(f"next page {i+2}: {json.dumps(meta,indent=4)}")
+                if not next_page_url:
                     break  # No next page
 
-                url = response_data["meta"]["nextPageURL"]
+                # Prepare for the next request
+                url = next_page_url
                 i += 1
-
+            print(f"completed fetching, Saving {len(all_contacts)} Contacts")
             ContactServices._save_contacts(all_contacts)
             imported_contacts_summary.append(f"{location_id}: Imported {len(all_contacts)} contacts")
-        return imported_contacts_summary
         
+        return imported_contacts_summary
 
     @staticmethod
     def _save_contacts(contacts):
@@ -218,6 +221,7 @@ class ContactServices:
 
         # Step 1: Prepare Contact objects
         for contact in unique_contacts:
+            print(f"contact company name: {contact.get('companyName')}")
             contact_obj = Contact(
                 id=contact["id"],
                 first_name=contact.get("firstName", ""),
@@ -230,6 +234,7 @@ class ContactServices:
                 date_added=datetime.fromisoformat(contact["dateAdded"].replace("Z", "+00:00")) if contact.get("dateAdded") else None,
                 date_updated=datetime.fromisoformat(contact["dateUpdated"].replace("Z", "+00:00")) if contact.get("dateUpdated") else None,
                 dnd=contact.get("dnd", False),
+                company_name=contact.get("companyName", ""),
             )
             contact_objects.append(contact_obj)
 
@@ -240,14 +245,14 @@ class ContactServices:
             unique_fields=["id"],
             update_fields=[
                 "first_name", "last_name", "email", "phone", "country", "location_id", "type",
-                "date_added", "date_updated", "dnd"
+                "date_added", "date_updated", "dnd","company_name"
             ],
         )
 
         # Step 3: Prepare CustomFieldValues
         for contact in unique_contacts:
             custom_fields_data = contact.get("customFields", [])
-            print(json.dumps(custom_fields_data, indent=4))
+            # print(json.dumps(custom_fields_data, indent=4))
             if custom_fields_data and isinstance(custom_fields_data, list):
                 for field in custom_fields_data:
                     custom_field_id = field.get("id")
@@ -283,6 +288,29 @@ class ContactServices:
                 defaults={"value": cfv.value}
             )
             
+
+
+    @staticmethod
+    def push_contact(contact_obj :Contact, data):
+        token_obj = OAuthServices.get_valid_access_token_obj(contact_obj.location_id)
+        headers = {
+            "Authorization": f"Bearer {token_obj.access_token}",
+            "Content-Type": "application/json",
+            "Version": API_VERSION,
+        }
+
+        url = f"{BASE_URL}/contacts/{contact_obj.id}"
+      
+
+        response = requests.put(url, headers=headers, json=data)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise ContactServiceError(f"API request failed: {response.status_code}")
+
+    
+       
     @staticmethod
     def add_customfields( data, locatioId):
         cf_dict={}

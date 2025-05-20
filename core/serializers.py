@@ -20,7 +20,8 @@ class ContactSerializer(serializers.ModelSerializer):
             "date_added",
             "date_updated",
             "dnd",
-            'custom_fields'
+            'company_name',
+            'custom_fields',
         ]
     def get_custom_fields(self, obj):
         custom_fields = {}

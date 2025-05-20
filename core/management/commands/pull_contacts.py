@@ -9,8 +9,5 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         query = kwargs.get('query')
-        try:
-            result = ContactServices.pull_contacts(query)
-            self.stdout.write(self.style.SUCCESS(result))
-        except Exception as e:
-            self.stderr.write(self.style.ERROR(f"Error: {str(e)}"))
+        result = ContactServices.pull_contacts(query)
+        self.stdout.write(self.style.SUCCESS(result))
