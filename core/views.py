@@ -24,9 +24,10 @@ from .serializers import (
     GHLUserSerializer
     )
 from .filters import ContactFilter, GHLuserFilter
-from .services import ContactServices
+from .services import ContactServices, UserServices
 from opportunities.services import PipelineServices
 Pipeline= apps.get_model('opportunities', 'Pipeline')
+PipelineStage= apps.get_model('opportunities', 'PipelineStage')
 Opportunity= apps.get_model('opportunities', 'Opportunity')
 WebhookLog = apps.get_model('core', 'WebhookLog')
 
@@ -154,6 +155,12 @@ class WebhookView(APIView):
         contact_id = data.get("contactId")
         status_value = data.get("status")
         created_at = data.get("dateAdded")
+        assigned_to = data.get("assignedTo")
+        opp_value = data.get("monetaryValue")
+        stage_id = data.get("pipelineStageId")
+        updated_at = data.get("timestamp")
+        updated_at = parse_datetime(updated_at).replace(tzinfo=timezone.utc) if updated_at else now() # type: ignore
+        
         created_at_dt = parse_datetime(created_at)
         created_at_dt = created_at_dt.replace(tzinfo=timezone.utc) if created_at_dt else now()
         
@@ -170,7 +177,20 @@ class WebhookView(APIView):
                     if not pipeline:
                         return Response({"error": "Pipeline not found"}, status=status.HTTP_400_BAD_REQUEST)
 
-                # Get or create the contact
+                assigned = GHLUser.objects.filter(id=assigned_to).first()
+                if not assigned:
+                    UserServices.pull_users()
+                    assigned = GHLUser.objects.filter(id=assigned_to).first()
+                    if not assigned:
+                        return Response({"error": "Pipeline not found"}, status=status.HTTP_400_BAD_REQUEST)
+                
+                stage = PipelineStage.objects.filter(id=stage_id).first()
+                if not stage:
+                    PipelineServices.pull_pipelines()
+                    stage = PipelineStage.objects.filter(id=stage_id).first()
+                    if not stage:
+                        return Response({"error": "Pipeline not found"}, status=status.HTTP_400_BAD_REQUEST)
+                    
                 
                 contact = None
                 if contact_id:
@@ -199,8 +219,12 @@ class WebhookView(APIView):
                         "name": name,
                         "pipeline": pipeline,
                         "contact": contact,
+                        "assigned_to":assigned,
                         "status": status_value,
                         "created_at": created_at_dt,
+                        "opp_value":opp_value,
+                        "updated_at":updated_at,
+                        "stage":stage
                     },
                 )
             print(f"Opportunity {name} processed")
