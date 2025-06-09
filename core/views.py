@@ -93,6 +93,7 @@ class WebhookView(APIView):
         try:
             data = request.data
             webhook_id = data.get("webhookId")  
+            print(f"Received webhook data: {json.dumps(data, indent=2)}")
             if not webhook_id:
                 print("Missing webhook ID")
                 return Response({"error": "Missing webhook ID"}, status=status.HTTP_400_BAD_REQUEST)
@@ -101,6 +102,7 @@ class WebhookView(APIView):
                 print("Duplicate webhook ID")
                 return Response({"error": "Duplicate webhook ID"}, status=status.HTTP_400_BAD_REQUEST)
 
+            
             timestamp_at = data.get("timestamp")
             if not timestamp_at:
                 print("Missing timestamp")
@@ -115,89 +117,98 @@ class WebhookView(APIView):
             if time_difference > timedelta(minutes=5):
                 return Response({"error": "Webhook request is too old"}, status=status.HTTP_400_BAD_REQUEST)
 
-
+            WebhookLog.objects.create(webhook_id=webhook_id)
             # signature = request.headers.get("x-wh-signature")  To verify signature
             # if not self.verify_signature(payload, signature, timestamp):   
             #     return Response({"error": "Invalid Signature or Expired timestamp"})
-
-            ghl_id = data.get("id")
-            name = data.get("name")
-            pipeline_id = data.get("pipelineId")
-            contact_id = data.get("contactId")
-            status_value = data.get("status")
-            created_at = data.get("dateAdded")
             event_type = data.get("event_type")
-            created_at_dt = parse_datetime(created_at)
-            created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
-            
             if event_type == "ContactCreate":
                 self.create_contact(data)
             elif event_type == "ContactDelete":
                 self.delete_contact(data)
             elif event_type == "ContactUpdate":
                 self.update_contact(data)
+            elif event_type in ["OpportunityCreate", "OpportunityUpdate"]:
+                return self.create_or_update_opportunity(data)
+            elif event_type == "OpportunityDelete":
+                return self.delete_opportunity(data)
+            
+            
+            
             # elif event_type == "ContactDndUpdate":
             #     self.update_contact_dnd(data)
             # elif event_type == "ContactTagUpdate":
             #     self.update_contact_tags(data)
-          
-            if all([ghl_id, name, pipeline_id, status_value]):
-
-                with transaction.atomic():  # Prevent database locking issues
-                    # Log the webhook ID to prevent duplicate processing
-                    WebhookLog.objects.create(webhook_id=webhook_id)
-
-                    # Get or pull the pipeline
-                    pipeline = Pipeline.objects.filter(ghl_id=pipeline_id).first()
-                    if not pipeline:
-                        PipelineServices.pull_pipelines()
-                        pipeline = Pipeline.objects.filter(ghl_id=pipeline_id).first()
-                        if not pipeline:
-                            return Response({"error": "Pipeline not found"}, status=status.HTTP_400_BAD_REQUEST)
-
-                    # Get or create the contact
-                    
-                    contact = None
-                    if contact_id:
-                        contact = Contact.objects.filter(id=contact_id).first()
-                        if not contact:
-                            contact_data = ContactServices.retrieve_contact(contact_id)
-                            if contact_data:
-                                contact = Contact.objects.create(
-                                    id=contact_data.get("id"),
-                                    first_name=contact_data.get("firstName", ""),
-                                    last_name=contact_data.get("lastName", ""),
-                                    email=contact_data.get("email", ""),
-                                    phone=contact_data.get("phone", ""),
-                                    country=contact_data.get("country", ""),
-                                    location_id=contact_data.get("locationId", ""),
-                                    type=contact_data.get("type", "lead"),
-                                    date_added=parse_datetime(contact_data.get("dateAdded")),
-                                    date_updated=parse_datetime(contact_data.get("dateUpdated")),
-                                    dnd=contact_data.get("dnd", False),
-                                )
-
-                    # Create or update the Opportunity
-                    opportunity, created = Opportunity.objects.update_or_create(
-                        ghl_id=ghl_id,
-                        defaults={
-                            "name": name,
-                            "pipeline": pipeline,
-                            "contact": contact,
-                            "status": status_value,
-                            "created_at": created_at_dt,
-                        },
-                    )
-                print(f"Opportunity {name} processed")
-            return Response({"message": "Opportunity processed", "created": created}, status=status.HTTP_200_OK)
-
-     
-
-
             
+            return Response({"message": f"Webhook processed {event_type}"}, status=status.HTTP_200_OK)
+
         except Exception as e:
             print(f"error: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def create_or_update_opportunity(self, data):
+        ghl_id = data.get("id")
+        name = data.get("name")
+        pipeline_id = data.get("pipelineId")
+        contact_id = data.get("contactId")
+        status_value = data.get("status")
+        created_at = data.get("dateAdded")
+        created_at_dt = parse_datetime(created_at)
+        created_at_dt = created_at_dt.replace(tzinfo=timezone.utc) if created_at_dt else now()
+        
+        created =False
+        if all([ghl_id, name, pipeline_id, status_value]):
+            
+            with transaction.atomic():  # Prevent database locking issues
+                # Log the webhook ID to prevent duplicate processing
+                # Get or pull the pipeline
+                pipeline = Pipeline.objects.filter(ghl_id=pipeline_id).first()
+                if not pipeline:
+                    PipelineServices.pull_pipelines()
+                    pipeline = Pipeline.objects.filter(ghl_id=pipeline_id).first()
+                    if not pipeline:
+                        return Response({"error": "Pipeline not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Get or create the contact
+                
+                contact = None
+                if contact_id:
+                    contact = Contact.objects.filter(id=contact_id).first()
+                    if not contact:
+                        contact_data = ContactServices.retrieve_contact(contact_id, location_id=pipeline.LocationId) # type: ignore
+                        if contact_data:
+                            contact = Contact.objects.create(
+                                id=contact_data.get("id"),
+                                first_name=contact_data.get("firstName", ""),
+                                last_name=contact_data.get("lastName", ""),
+                                email=contact_data.get("email", ""),
+                                phone=contact_data.get("phone", ""),
+                                country=contact_data.get("country", ""),
+                                location_id=contact_data.get("locationId", ""),
+                                type=contact_data.get("type", "lead"),
+                                date_added=parse_datetime(contact_data.get("dateAdded")),
+                                date_updated=parse_datetime(contact_data.get("dateUpdated")),
+                                dnd=contact_data.get("dnd", False),
+                            )
+
+                # Create or update the Opportunity
+                opportunity, created = Opportunity.objects.update_or_create(
+                    ghl_id=ghl_id,
+                    defaults={
+                        "name": name,
+                        "pipeline": pipeline,
+                        "contact": contact,
+                        "status": status_value,
+                        "created_at": created_at_dt,
+                    },
+                )
+            print(f"Opportunity {name} processed")
+        
+        return created
+    
+    def delete_opportunity(self, data):
+        ghl_id = data.get("id")
+        Opportunity.objects.filter(ghl_id=ghl_id).delete()
         
         
     def create_contact(self, data):

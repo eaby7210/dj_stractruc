@@ -9,5 +9,6 @@ router.register(r"ghlusers", GHLUserViewSet, basename="ghlusers")
 
 urlpatterns = [
     path("webhook",WebhookView.as_view(),name ="contact-webhook"),
+    path("webhook/",WebhookView.as_view(),name ="contact-webhook"),
     path("", include(router.urls)),  
 ]

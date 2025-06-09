@@ -287,9 +287,27 @@ class ContactServices:
                 custom_field=cfv.custom_field,
                 defaults={"value": cfv.value}
             )
-            
+    
+    @staticmethod
+    def retrieve_contact(contact_id, location_id):
+        """
+        Retrieve a specific contact by ID from GoHighLevel API.
+        """
+        token_obj = OAuthServices.get_valid_access_token_obj(location_id)
+        headers = {
+            "Authorization": f"Bearer {token_obj.access_token}",
+            "Content-Type": "application/json",
+            "Version": API_VERSION,
+        }
 
+        url = f"{BASE_URL}/contacts/{contact_id}"
+        response = requests.get(url, headers=headers)
 
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise ContactServiceError(f"API request failed: {response.status_code}")
+    
     @staticmethod
     def push_contact(contact_obj :Contact, data):
         token_obj = OAuthServices.get_valid_access_token_obj(contact_obj.location_id)
@@ -308,15 +326,14 @@ class ContactServices:
             return response.json()
         else:
             raise ContactServiceError(f"API request failed: {response.status_code}")
-
-    
-       
+     
     @staticmethod
     def add_customfields( data, locatioId):
         cf_dict={}
         if data and locatioId:
             for cf in data:
                 cf_obj = helpers.map_to_customfield(cf["id"],locatioId)
+              
                 cf_dict[cf_obj.name.lower()]=cf["value"]
         # print("added custom fields: ", cf_dict)     
         return cf_dict

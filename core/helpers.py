@@ -3,12 +3,12 @@ import requests
 from datetime import datetime
 
 
-def map_to_customfield(custom_field_id, location_id):
+def map_to_customfield(custom_field_id, location_id) -> CustomField:
     custom_field = CustomField.objects.get(id = custom_field_id, location_id = location_id)
     if custom_field:
         return custom_field
     else:
-        custom_field = save_custom_field_to_db(custom_field_id, location_id)
+        custom_field :CustomField = save_custom_field_to_db(custom_field_id, location_id)
         return custom_field
 
 
