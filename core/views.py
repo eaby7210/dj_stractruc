@@ -121,7 +121,7 @@ class WebhookView(APIView):
             # signature = request.headers.get("x-wh-signature")  To verify signature
             # if not self.verify_signature(payload, signature, timestamp):   
             #     return Response({"error": "Invalid Signature or Expired timestamp"})
-            event_type = data.get("event_type")
+            event_type = data.get("type")
             if event_type == "ContactCreate":
                 self.create_contact(data)
             elif event_type == "ContactDelete":
@@ -139,8 +139,9 @@ class WebhookView(APIView):
             #     self.update_contact_dnd(data)
             # elif event_type == "ContactTagUpdate":
             #     self.update_contact_tags(data)
-            
-            return Response({"message": f"Webhook processed {event_type}"}, status=status.HTTP_200_OK)
+            msg ={"message": f"Webhook processed {event_type}"}
+            print(msg)
+            return Response(msg, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(f"error: {str(e)}")
@@ -224,6 +225,7 @@ class WebhookView(APIView):
     def update_contact(self, data):
         """ Updates a contact """
         contact = Contact.objects.filter(id=data["id"]).first()
+        print(f"found contact {contact}")
         if contact:
             contact.first_name = data.get("firstName", contact.first_name)
             contact.last_name = data.get("lastName", contact.last_name)
