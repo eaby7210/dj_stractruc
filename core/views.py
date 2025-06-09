@@ -130,9 +130,9 @@ class WebhookView(APIView):
             elif event_type == "ContactUpdate":
                 self.update_contact(data)
             elif event_type in ["OpportunityCreate", "OpportunityUpdate"]:
-                return self.create_or_update_opportunity(data)
+                self.create_or_update_opportunity(data)
             elif event_type == "OpportunityDelete":
-                return self.delete_opportunity(data)
+                self.delete_opportunity(data)
             
             
             
